@@ -6,12 +6,22 @@ import PnlBadge from './PnlBadge'
 import SkeletonRows from './SkeletonRows'
 import { formatINR, formatPct, formatChange, formatDate, formatNumber } from '../utils/formatters'
 import { calcMfPnl, calcTotals } from '../utils/pnl'
+import {
+  buildHoldingsSummaryMetrics,
+  calcRealizedGain,
+  sumMfTodayPnl,
+} from '../utils/summaryMetrics'
+import { storage } from '../utils/storage'
 import { useSortable } from '../hooks/useSortable'
-
-function SortIcon({ col, sortKey, sortDir }) {
-  if (col !== sortKey) return <span className="sort-icon neutral">⇅</span>
-  return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>
-}
+import SortTh from './SortTh'
+import FilterBar from './FilterBar'
+import LiveBadge from './LiveBadge'
+import SummaryBar from './SummaryBar'
+import {
+  MutualFundCard,
+  HoldingCardSkeleton,
+  HoldingCardsEmpty,
+} from './HoldingCards'
 
 const getSortVal = (fund, key) => {
   switch (key) {
@@ -19,6 +29,7 @@ const getSortVal = (fund, key) => {
     case 'pnlPct': return calcMfPnl(fund).pnlPct
     case 'currentValue': return fund.currentNAV != null ? fund.units * fund.currentNAV : null
     case 'invested': return fund.units * fund.buyNAV
+    case 'buyNAV': return fund.buyNAV
     case 'qty': return fund.units
     default: return fund[key]
   }
@@ -31,13 +42,27 @@ function FundRow({ fund, onEdit, onDelete }) {
 
   return (
     <>
-      <tr className={rowCls} onClick={() => setExpanded((v) => !v)}>
+      <tr
+        className={rowCls}
+        onClick={() => setExpanded((v) => !v)}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded((v) => !v)
+          }
+        }}
+      >
         <td className="cell-scheme">
-          <div className="fw-600 fs-13 ellipsis">{fund.schemeName}</div>
+          <div className="cell-scheme-name" title={fund.schemeName}>
+            {fund.schemeName}
+          </div>
           <div className="text-muted-sm">Code: {fund.schemeCode}</div>
         </td>
-        <td className="right mono">{formatNumber(fund.units, 3)}</td>
-        <td className="right mono">{formatINR(fund.buyNAV)}</td>
+        <td className="right mono col-day-change">{formatNumber(fund.units, 3)}</td>
+        <td className="right mono col-buy-price">{formatINR(fund.buyNAV)}</td>
         <td className="right mono">
           {fund.currentNAV != null ? (
             <span className="fw-600">{formatINR(fund.currentNAV)}</span>
@@ -84,13 +109,13 @@ function FundRow({ fund, onEdit, onDelete }) {
                   className="btn btn-secondary btn-sm"
                   onClick={(e) => { e.stopPropagation(); onEdit(fund) }}
                 >
-                  ✏️ Edit
+                  Edit
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
                   onClick={(e) => { e.stopPropagation(); onDelete(fund) }}
                 >
-                  🗑 Delete
+                  Delete
                 </button>
               </div>
             </div>
@@ -149,6 +174,11 @@ export default function MutualFunds({ showToast }) {
   )
 
   const totals = useMemo(() => calcTotals(funds), [funds])
+  const totalTodayPnl = useMemo(() => sumMfTodayPnl(funds), [funds])
+  const realizedPnl = useMemo(
+    () => calcRealizedGain(storage.getTransactions(), 'mutualFund'),
+    [funds]
+  )
 
   const [pulsing, setPulsing] = useState(false)
   const prevPnl = useRef(totals.totalPnl)
@@ -191,14 +221,6 @@ export default function MutualFunds({ showToast }) {
   }, [refreshNAVs, showToast])
 
   const allNavNull = funds.length > 0 && funds.every((f) => f.currentNAV === null)
-  const summaryClass = totals.totalPnl == null ? '' : totals.totalPnl >= 0 ? ' summary-gain' : ' summary-loss'
-
-  const SortTh = ({ col, children, className = '' }) => (
-    <th className={`sortable-th${className ? ' ' + className : ''}`} onClick={() => setSort(col)}>
-      {children} <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </th>
-  )
-
   return (
     <div className="page">
       <div className="section-header">
@@ -209,13 +231,7 @@ export default function MutualFunds({ showToast }) {
           </div>
         </div>
         <div className="section-header-right">
-          {lastUpdated && (
-            <div className="live-badge">
-              <span className="live-dot" />
-              Last updated:{' '}
-              {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          )}
+          <LiveBadge lastUpdated={lastUpdated} />
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleRefresh}
@@ -233,24 +249,28 @@ export default function MutualFunds({ showToast }) {
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="table-wrap">
-          <div className="table-filter-bar">
-            <div className="filter-input-wrap">
-              <input
-                className="filter-input"
-                type="text"
-                placeholder="Filter holdings…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                aria-label="Filter holdings"
-              />
-              {filter && (
-                <button className="filter-clear" onClick={() => setFilter('')} aria-label="Clear filter">×</button>
-              )}
-            </div>
-            {filter && (
-              <span className="filter-count" aria-live="polite">{filtered.length} of {funds.length}</span>
-            )}
-          </div>
+          {!loading && (
+            <SummaryBar
+              variant="elevated"
+              metrics={buildHoldingsSummaryMetrics({
+                totalCurrent: totals.totalCurrent,
+                totalInvested: totals.totalInvested,
+                todayPnl: totalTodayPnl,
+                totalPnl: totals.totalPnl,
+                totalPnlPct: totals.totalPnlPct,
+                realizedPnl,
+                pulsing,
+                currentSubHint: totals.totalCurrent == null ? 'Refresh NAV to see value' : null,
+              })}
+            />
+          )}
+
+          <FilterBar
+            value={filter}
+            onChange={setFilter}
+            total={funds.length}
+            filtered={filtered.length}
+          />
 
           {allNavNull && !loading && (
             <div className="prices-unavailable">
@@ -260,18 +280,28 @@ export default function MutualFunds({ showToast }) {
           )}
 
           <div className="table-scroll">
-            <table>
+            <table className="holdings-table holdings-table--mf">
               <caption className="sr-only">Mutual fund holdings with current NAV and performance</caption>
+              <colgroup>
+                <col style={{ width: '30%' }} />  {/* Scheme */}
+                <col style={{ width: '8%' }} />   {/* Units */}
+                <col style={{ width: '9%' }} />   {/* Buy NAV */}
+                <col style={{ width: '9%' }} />   {/* Current NAV */}
+                <col style={{ width: '11%' }} />  {/* Invested */}
+                <col style={{ width: '12%' }} />  {/* Current Value */}
+                <col style={{ width: '11%' }} />  {/* P&L */}
+                <col style={{ width: '10%' }} />  {/* P&L % */}
+              </colgroup>
               <thead>
                 <tr>
-                  <SortTh col="symbol">Scheme</SortTh>
-                  <SortTh col="qty" className="right">Units</SortTh>
-                  <SortTh col="invested" className="right">Buy NAV</SortTh>
+                  <SortTh col="symbol" label="Scheme" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="qty" label="Units" className="right col-day-change" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="buyNAV" label="Buy NAV" className="right col-buy-price" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <th className="right">Current NAV</th>
-                  <SortTh col="invested" className="right">Invested</SortTh>
-                  <SortTh col="currentValue" className="right">Current Value</SortTh>
+                  <SortTh col="invested" label="Invested" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="currentValue" label="Current Value" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <th className="right">P&amp;L</th>
-                  <SortTh col="pnlPct" className="right">P&amp;L %</SortTh>
+                  <SortTh col="pnlPct" label="P&amp;L %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>
               <tbody>
@@ -293,30 +323,25 @@ export default function MutualFunds({ showToast }) {
                 )}
               </tbody>
             </table>
+
+            {loading ? (
+              <HoldingCardSkeleton count={funds.length || 3} />
+            ) : sorted.length === 0 ? (
+              <HoldingCardsEmpty message={`No holdings match "${filter}"`} />
+            ) : (
+              <div className="holding-cards">
+                {sorted.map((f) => (
+                  <MutualFundCard
+                    key={f.id}
+                    fund={f}
+                    onEdit={setEditFund}
+                    onDelete={setDeleteFund}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {!loading && (
-            <div className={`table-summary${summaryClass}`}>
-              <div className="table-summary-item">
-                <span className="label">Total Invested</span>
-                <span className="value">{formatINR(totals.totalInvested)}</span>
-              </div>
-              {totals.totalCurrent != null && (
-                <>
-                  <div className="table-summary-item">
-                    <span className="label">Current Value</span>
-                    <span className="value">{formatINR(totals.totalCurrent)}</span>
-                  </div>
-                  <div className="table-summary-item">
-                    <span className="label">Total P&amp;L</span>
-                    <span className={`value pnl-value${pulsing ? ' pnl-pulse' : ''} ${totals.totalPnl >= 0 ? 'text-gain' : 'text-loss'}`}>
-                      {formatChange(totals.totalPnl)} ({formatPct(totals.totalPnlPct)})
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
       )}
 

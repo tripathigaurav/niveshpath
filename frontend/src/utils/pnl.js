@@ -1,30 +1,71 @@
+function pnlFromValues(invested, current) {
+  const pnl = current != null ? current - invested : null
+  const pnlPct = pnl != null && invested ? (pnl / invested) * 100 : null
+  return { pnl, pnlPct }
+}
+
+export function pnlColorClass(value) {
+  if (value == null || value === 0) return ''
+  return value > 0 ? 'text-gain' : 'text-loss'
+}
+
 export function calcPnl(item) {
   const invested = item.qty * item.buyPrice
   const current = item.currentPrice != null ? item.qty * item.currentPrice : null
-  const pnl = current != null ? current - invested : null
-  const pnlPct = pnl != null && invested ? (pnl / invested) * 100 : null
-  return { invested, current, pnl, pnlPct }
+  return { invested, current, ...pnlFromValues(invested, current) }
+}
+
+/** Per-share day change + holding-level today P&L for Indian stocks. */
+export function calcIndianStockMetrics(stock) {
+  const { invested, current, pnl, pnlPct } = calcPnl(stock)
+  const dayChangePerShare = stock.dayChange ?? null
+  const dayChangePct = stock.dayChangePct ?? null
+  const todayPnl =
+    dayChangePerShare != null && stock.qty != null
+      ? stock.qty * dayChangePerShare
+      : null
+  return {
+    invested,
+    current,
+    pnl,
+    pnlPct,
+    dayChangePerShare,
+    dayChangePct,
+    todayPnl,
+    ltp: stock.currentPrice ?? null,
+  }
+}
+
+export function sumTodayPnl(stocks) {
+  let sum = 0
+  let hasAny = false
+  for (const s of stocks) {
+    const { todayPnl } = calcIndianStockMetrics(s)
+    if (todayPnl != null) {
+      sum += todayPnl
+      hasAny = true
+    }
+  }
+  return hasAny ? sum : null
 }
 
 export function calcUsPnl(stock) {
   const investedUSD = stock.qty * stock.buyPrice
   const currentUSD = stock.currentPrice != null ? stock.qty * stock.currentPrice : null
-  const pnlUSD = currentUSD != null ? currentUSD - investedUSD : null
-  const pnlPct = pnlUSD != null && investedUSD ? (pnlUSD / investedUSD) * 100 : null
-  return { investedUSD, currentUSD, pnlUSD, pnlPct }
+  const { pnl, pnlPct } = pnlFromValues(investedUSD, currentUSD)
+  return { investedUSD, currentUSD, pnlUSD: pnl, pnlPct }
 }
 
 export function calcMfPnl(fund) {
   const invested = fund.units * fund.buyNAV
   const current = fund.currentNAV != null ? fund.units * fund.currentNAV : null
-  const pnl = current != null ? current - invested : null
-  const pnlPct = pnl != null && invested ? (pnl / invested) * 100 : null
-  return { invested, current, pnl, pnlPct }
+  return { invested, current, ...pnlFromValues(invested, current) }
 }
 
 export function calcOtherPnl(asset) {
-  const pnl = asset.currentValue != null ? asset.currentValue - asset.investedAmount : null
-  const pnlPct = pnl != null && asset.investedAmount ? (pnl / asset.investedAmount) * 100 : null
+  const invested = asset.investedAmount
+  const current = asset.currentValue
+  const { pnl, pnlPct } = pnlFromValues(invested, current ?? null)
   return { pnl, pnlPct }
 }
 

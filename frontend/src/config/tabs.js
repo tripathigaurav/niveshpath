@@ -10,7 +10,9 @@ export const MAIN_TABS = [
 ]
 
 export const MORE_TABS = [
+  { id: 'insights',    label: 'Insights',     icon: '💡' },
   { id: 'otherAssets', label: 'Other Assets', icon: '🏦' },
+  { id: 'insurance',   label: 'Insurance',    icon: '🛡️' },
   { id: 'watchlist',   label: 'Watchlist',    icon: '⭐' },
 ]
 

@@ -62,12 +62,12 @@ def fetch_ticker_data(symbol: str) -> dict:
         fi = ticker.fast_info
         price = fi.get("lastPrice") or fi.get("regularMarketPrice")
         prev = fi.get("previousClose") or fi.get("regularMarketPreviousClose")
-        day_change = round(price - prev, 4) if price and prev else None
-        day_pct = round((day_change / prev) * 100, 2) if day_change and prev else None
+        day_change = round(price - prev, 4) if price is not None and prev is not None else None
+        day_pct = round((day_change / prev) * 100, 2) if day_change is not None and prev else None
         return {
             "symbol": symbol,
-            "price": round(float(price), 4) if price else None,
-            "previousClose": round(float(prev), 4) if prev else None,
+            "price": round(float(price), 4) if price is not None else None,
+            "previousClose": round(float(prev), 4) if prev is not None else None,
             "dayChange": day_change,
             "dayChangePct": day_pct,
             "error": None,

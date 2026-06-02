@@ -71,33 +71,44 @@ export default function MarketStrip() {
     )
   }
 
-  const pills = data
-    ? ORDERED_KEYS.map((key) => {
-        const item = data[key]
-        if (!item) return null
-        const prefix = key === 'usdInr' ? '₹' : key === 'gold' || key === 'crude' ? '$' : ''
-        return (
-          <Pill
-            key={key}
-            label={item.label || key}
-            price={item.price}
-            changePct={item.dayChangePct}
-            prefix={prefix}
-          />
-        )
-      }).filter(Boolean)
-    : Array.from({ length: 8 }).map((_, i) => <SkeletonPill key={i} />)
+  function buildTrack(trackPrefix) {
+    if (!data) {
+      return Array.from({ length: 8 }).map((_, i) => (
+        <SkeletonPill key={`${trackPrefix}-sk-${i}`} />
+      ))
+    }
+    const pills = ORDERED_KEYS.map((key) => {
+      const item = data[key]
+      if (!item) return null
+      const pricePrefix = key === 'usdInr' ? '₹' : key === 'gold' || key === 'crude' ? '$' : ''
+      return (
+        <Pill
+          key={`${trackPrefix}-${key}`}
+          label={item.label || key}
+          price={item.price}
+          changePct={item.dayChangePct}
+          prefix={pricePrefix}
+        />
+      )
+    }).filter(Boolean)
 
-  const withSeps = pills.flatMap((p, i, arr) => i < arr.length - 1
-    ? [p, <div key={`sep-${i}`} className="ms-sep" />]
-    : [p]
-  )
+    return pills.flatMap((p, i, arr) =>
+      i < arr.length - 1
+        ? [p, <div key={`${trackPrefix}-sep-${i}`} className="ms-sep" />]
+        : [p]
+    )
+  }
+
+  const track1 = buildTrack('t1')
+  const track2 = buildTrack('t2')
 
   return (
     <div className="market-strip-dark">
-      <div className="ms-ticker-wrap">
-        <div className="ms-ticker-track">{withSeps}</div>
-        <div className="ms-ticker-track" aria-hidden="true">{withSeps}</div>
+      <div className="ms-ticker" role="marquee" aria-label="Market overview">
+        <div className="ms-ticker-wrap">
+          <div className="ms-ticker-track">{track1}</div>
+          <div className="ms-ticker-track" aria-hidden="true">{track2}</div>
+        </div>
       </div>
     </div>
   )

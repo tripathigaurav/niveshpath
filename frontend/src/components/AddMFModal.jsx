@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../utils/api'
 import { useDebounce } from '../hooks/useDebounce'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useClickOutside } from '../hooks/useClickOutside'
 
 const SEARCH_DEBOUNCE_MS = 350
 const MIN_SEARCH_LEN = 2
@@ -15,6 +16,7 @@ export default function AddMFModal({ initial, onSave, onClose }) {
   const [searching, setSearching] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [errors, setErrors] = useState({})
+  const [activeIdx, setActiveIdx] = useState(-1)
   const searchRef = useRef(null)
   const modalRef = useRef(null)
   const debouncedQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
@@ -38,33 +40,47 @@ export default function AddMFModal({ initial, onSave, onClose }) {
       .finally(() => setSearching(false))
   }, [debouncedQuery, form.schemeName])
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  useClickOutside(searchRef, () => setShowDropdown(false), showDropdown)
 
   const selectScheme = useCallback((scheme) => {
     setForm((f) => ({
       ...f,
-      schemeCode: scheme.schemeCode,
+      schemeCode: String(scheme.schemeCode),
       schemeName: scheme.schemeName,
       buyNAV: f.buyNAV || String(scheme.nav),
     }))
     setSearchQuery(scheme.schemeName)
     setShowDropdown(false)
     setResults([])
+    setActiveIdx(-1)
   }, [])
+
+  const handleSearchKeyDown = (e) => {
+    if (!showDropdown || !results.length) {
+      if (e.key === 'Escape') setShowDropdown(false)
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault()
+      selectScheme(results[activeIdx])
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+      setActiveIdx(-1)
+    }
+  }
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const validate = () => {
     const errs = {}
-    if (!form.schemeCode.trim()) errs.schemeName = 'Please search and select a scheme'
+    const code = String(form.schemeCode || '').trim()
+    if (!code) errs.schemeName = 'Please search and select a scheme'
     if (!form.units || isNaN(form.units) || +form.units <= 0) errs.units = 'Enter valid units'
     if (!form.buyNAV || isNaN(form.buyNAV) || +form.buyNAV <= 0) errs.buyNAV = 'Enter valid NAV'
     setErrors(errs)
@@ -105,21 +121,26 @@ export default function AddMFModal({ initial, onSave, onClose }) {
                     setSearchQuery(e.target.value)
                     setForm((f) => ({ ...f, schemeCode: '', schemeName: e.target.value }))
                     setShowDropdown(true)
+                    setActiveIdx(-1)
                   }}
+                  onKeyDown={handleSearchKeyDown}
                   autoFocus
                   autoComplete="off"
                 />
                 {showDropdown && (
-                  <div className="search-dropdown">
+                  <div className="search-dropdown" role="listbox">
                     {searching && <div className="search-loading">Searching AMFI...</div>}
                     {!searching && results.length === 0 && searchQuery.length >= MIN_SEARCH_LEN && (
                       <div className="search-empty">No schemes found.</div>
                     )}
-                    {results.map((r) => (
+                    {results.map((r, i) => (
                       <div
                         key={r.schemeCode}
-                        className="search-option"
+                        role="option"
+                        aria-selected={i === activeIdx}
+                        className={`search-option${i === activeIdx ? ' active' : ''}`}
                         onMouseDown={() => selectScheme(r)}
+                        onMouseEnter={() => setActiveIdx(i)}
                       >
                         <div>
                           <div className="search-option-symbol search-option-symbol-sm">

@@ -17,7 +17,7 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary-container">
+        <div className="error-boundary-container" role="alert">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
             <circle cx="28" cy="28" r="28" fill="#fee2e2" />
             <path d="M28 18v12M28 34v2" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" />

@@ -2,19 +2,21 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../utils/api'
 import { useDebounce } from '../hooks/useDebounce'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useClickOutside } from '../hooks/useClickOutside'
 
 const SEARCH_DEBOUNCE_MS = 350
 const MIN_SEARCH_LEN = 2
 
 const EMPTY = { symbol: '', name: '', qty: '', buyPrice: '', buyDate: '' }
 
-export default function AddStockModal({ initial, onSave, onClose, mode = 'indian' }) {
+export default function AddStockModal({ initial, onSave, onClose, mode = 'indian', usCategory = 'stock' }) {
   const [form, setForm] = useState(initial || EMPTY)
   const [searchQuery, setSearchQuery] = useState(initial?.symbol || '')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [errors, setErrors] = useState({})
+  const [activeIdx, setActiveIdx] = useState(-1)
   const searchRef = useRef(null)
   const modalRef = useRef(null)
   const debouncedQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
@@ -43,22 +45,35 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
       .finally(() => setSearching(false))
   }, [debouncedQuery, mode, form.symbol])
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  useClickOutside(searchRef, () => setShowDropdown(false), showDropdown)
 
   const selectResult = useCallback((result) => {
     setForm((f) => ({ ...f, symbol: result.symbol, name: result.name }))
     setSearchQuery(result.symbol)
     setShowDropdown(false)
     setResults([])
+    setActiveIdx(-1)
   }, [])
+
+  const handleSearchKeyDown = (e) => {
+    if (!showDropdown || !results.length) {
+      if (e.key === 'Escape') setShowDropdown(false)
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault()
+      selectResult(results[activeIdx])
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+      setActiveIdx(-1)
+    }
+  }
 
   const set = (field) => (e) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -75,10 +90,27 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (validate()) onSave(form)
+    if (validate()) {
+      onSave(mode === 'us' ? { ...form, category: usCategory } : form)
+    }
   }
 
-  const title = initial ? 'Edit Stock' : mode === 'indian' ? 'Add Indian Stock' : 'Add US Stock'
+  const usTitles = {
+    stock: initial ? 'Edit Stock' : 'Add US Stock',
+    espp: initial ? 'Edit ESPP' : 'Add ESPP Holding',
+    rsu: initial ? 'Edit RSU' : 'Add RSU Holding',
+  }
+  const title =
+    mode === 'indian'
+      ? (initial ? 'Edit Stock' : 'Add Indian Stock')
+      : (usTitles[usCategory] || usTitles.stock)
+
+  const usHints = {
+    stock: null,
+    espp: 'Employee Stock Purchase Plan — use your purchase price and purchase date.',
+    rsu: 'Restricted Stock Units — use vest date and cost basis (often $0 or FMV at vest).',
+  }
+  const usHint = mode === 'us' ? usHints[usCategory] : null
 
   return (
     <div
@@ -95,6 +127,19 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {usHint && (
+              <p className="form-hint form-hint-block">{usHint}</p>
+            )}
+            {mode === 'us' && usCategory === 'stock' && !initial && (
+              <p className="form-hint form-hint-block">
+                ETFs (e.g. SPY, QQQ, VTI) are auto-tagged when detected from the symbol or name.
+              </p>
+            )}
+            {mode === 'indian' && !initial && (
+              <p className="form-hint form-hint-block">
+                Indian ETFs (e.g. NIFTYBEES, GOLDBEES) are auto-tagged when detected from the symbol or name.
+              </p>
+            )}
             <div className="form-group">
               <label className="form-label">
                 Symbol {mode === 'indian' ? '(NSE/BSE)' : '(NASDAQ/NYSE)'}
@@ -109,21 +154,26 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
                     setSearchQuery(e.target.value)
                     setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))
                     setShowDropdown(true)
+                    setActiveIdx(-1)
                   }}
+                  onKeyDown={handleSearchKeyDown}
                   autoFocus
                   autoComplete="off"
                 />
                 {showDropdown && (
-                  <div className="search-dropdown">
+                  <div className="search-dropdown" role="listbox">
                     {searching && <div className="search-loading">Searching...</div>}
                     {!searching && results.length === 0 && searchQuery.length >= MIN_SEARCH_LEN && (
                       <div className="search-empty">No results found. You can type the symbol manually.</div>
                     )}
-                    {results.map((r) => (
+                    {results.map((r, i) => (
                       <div
                         key={r.symbol}
-                        className="search-option"
+                        role="option"
+                        aria-selected={i === activeIdx}
+                        className={`search-option${i === activeIdx ? ' active' : ''}`}
                         onMouseDown={() => selectResult(r)}
+                        onMouseEnter={() => setActiveIdx(i)}
                       >
                         <div>
                           <div className="search-option-symbol">{r.symbol}</div>
@@ -167,7 +217,11 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
               </div>
               <div className="form-group">
                 <label className="form-label">
-                  Avg Buy Price {mode === 'indian' ? '(₹)' : '($)'}
+                  {mode === 'us' && usCategory === 'espp'
+                    ? 'Purchase Price ($)'
+                    : mode === 'us' && usCategory === 'rsu'
+                      ? 'Cost Basis ($)'
+                      : `Avg Buy Price ${mode === 'indian' ? '(₹)' : '($)'}`}
                 </label>
                 <input
                   className={`form-input mono${errors.buyPrice ? ' error' : ''}`}
@@ -184,7 +238,9 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
             </div>
 
             <div className="form-group">
-              <label className="form-label">Buy Date</label>
+              <label className="form-label">
+                {mode === 'us' && usCategory === 'rsu' ? 'Vest Date' : 'Buy Date'}
+              </label>
               <input
                 className="form-input"
                 type="date"

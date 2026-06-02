@@ -2,120 +2,17 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useUSStocks } from '../hooks/usePortfolio'
 import AddStockModal from './AddStockModal'
 import ConfirmDialog from './ConfirmDialog'
-import PnlBadge from './PnlBadge'
-import SkeletonRows from './SkeletonRows'
-import { formatUSD, formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
-import { calcUsPnl, calcTotals } from '../utils/pnl'
-import { useSortable } from '../hooks/useSortable'
+import FilterBar from './FilterBar'
+import LiveBadge from './LiveBadge'
+import SummaryBar from './SummaryBar'
+import USHoldingsSection from './USHoldingsSection'
+import { formatUSD, formatINR, formatPct, formatChange } from '../utils/formatters'
+import { calcTotals, pnlColorClass } from '../utils/pnl'
+import { calcRealizedGain } from '../utils/summaryMetrics'
+import { storage } from '../utils/storage'
+import { partitionUsHoldings, US_CATEGORY } from '../utils/usHoldings'
 
-function SortIcon({ col, sortKey, sortDir }) {
-  if (col !== sortKey) return <span className="sort-icon neutral">⇅</span>
-  return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>
-}
-
-const getSortVal = (stock, key) => {
-  switch (key) {
-    case 'symbol': return stock.symbol
-    case 'pnlPct': return calcUsPnl(stock).pnlPct
-    case 'currentValue': return stock.currentPrice != null ? stock.qty * stock.currentPrice : null
-    case 'invested': return stock.qty * stock.buyPrice
-    case 'qty': return stock.qty
-    default: return stock[key]
-  }
-}
-
-function StockRow({ stock, usdInr, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
-  const { investedUSD, currentUSD, pnlUSD, pnlPct } = calcUsPnl(stock)
-  const rowCls = pnlUSD == null ? 'row-neutral' : pnlUSD > 0 ? 'row-gain' : 'row-loss'
-  const toINR = (usd) => (usdInr && usd != null ? usd * usdInr : null)
-
-  return (
-    <>
-      <tr className={rowCls} onClick={() => setExpanded((v) => !v)}>
-        <td><div className="fw-700 fs-13">{stock.symbol}</div></td>
-        <td className="cell-name text-2">{stock.name}</td>
-        <td className="right mono">{stock.qty.toLocaleString('en-US')}</td>
-        <td className="right mono">{formatUSD(stock.buyPrice)}</td>
-        <td className="right mono">
-          {stock.currentPrice != null ? (
-            <span className="fw-600">{formatUSD(stock.currentPrice)}</span>
-          ) : (
-            <span className="text-3">—</span>
-          )}
-        </td>
-        <td className="right mono">
-          <div>{formatUSD(investedUSD)}</div>
-          {usdInr && <div className="text-muted-sm">{formatINR(toINR(investedUSD))}</div>}
-        </td>
-        <td className="right mono">
-          {currentUSD != null ? (
-            <>
-              <div>{formatUSD(currentUSD)}</div>
-              {usdInr && <div className="text-muted-sm">{formatINR(toINR(currentUSD))}</div>}
-            </>
-          ) : (
-            <span className="text-3">—</span>
-          )}
-        </td>
-        <td className="right">
-          {pnlUSD != null ? (
-            <span className={pnlUSD >= 0 ? 'text-gain' : 'text-loss'}>
-              {formatChange(pnlUSD, 'USD')}
-            </span>
-          ) : (
-            <span className="text-3">—</span>
-          )}
-        </td>
-        <td className="right">
-          <PnlBadge value={pnlUSD} pct={pnlPct} />
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="expanded-row">
-          <td colSpan={9}>
-            <div className="row-details">
-              <div className="row-details-meta">
-                <div className="row-details-meta-item">
-                  Buy Date: <span>{stock.buyDate ? formatDate(stock.buyDate) : '—'}</span>
-                </div>
-                {stock.dayChange != null && (
-                  <div className="row-details-meta-item">
-                    Day Change:{' '}
-                    <span className={stock.dayChange >= 0 ? 'text-gain' : 'text-loss'}>
-                      {formatChange(stock.dayChange, 'USD')} ({formatPct(stock.dayChangePct)})
-                    </span>
-                  </div>
-                )}
-                {usdInr && (
-                  <div className="row-details-meta-item">
-                    USD/INR Rate: <span className="fw-600">₹{usdInr.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-              <div className="row-details-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onEdit(stock) }}
-                >
-                  ✏️ Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onDelete(stock) }}
-                >
-                  🗑 Delete
-                </button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  )
-}
-
-function EmptyState({ onAdd }) {
+function EmptyState({ onAddStock }) {
   return (
     <div className="empty-state">
       <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
@@ -124,23 +21,43 @@ function EmptyState({ onAdd }) {
         <polyline points="15,55 30,40 45,47 65,28" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         <circle cx="65" cy="28" r="3.5" fill="var(--green)" />
       </svg>
-      <h3>No US stocks yet</h3>
-      <p>Add your NASDAQ/NYSE holdings to track live USD prices and P&amp;L.</p>
-      <button className="btn btn-primary" onClick={onAdd}>
+      <h3>No US holdings yet</h3>
+      <p>Track stocks &amp; ETFs, ESPP, and RSU in separate tables with live USD prices.</p>
+      <button className="btn btn-primary" onClick={onAddStock}>
         + Add Your First US Stock
       </button>
     </div>
   )
 }
 
+function buildStockSubtitle(partition) {
+  const parts = []
+  if (partition.stockCount > 0) {
+    parts.push(`${partition.stockCount} stock${partition.stockCount !== 1 ? 's' : ''}`)
+  }
+  if (partition.etfCount > 0) {
+    parts.push(`${partition.etfCount} ETF${partition.etfCount !== 1 ? 's' : ''}`)
+  }
+  if (!parts.length) return 'Listed equities and exchange-traded funds'
+  return parts.join(' · ')
+}
+
 export default function USStocks({ showToast }) {
   const { stocks, loading, lastUpdated, usdInr, addStock, removeStock, updateStock, refreshPrices } =
     useUSStocks()
 
-  const [showAdd, setShowAdd] = useState(false)
+  const [addCategory, setAddCategory] = useState(null)
   const [editStock, setEditStock] = useState(null)
   const [deleteStock, setDeleteStock] = useState(null)
   const [filter, setFilter] = useState('')
+  const [showInr, setShowInr] = useState(false)
+
+  const partition = useMemo(() => partitionUsHoldings(stocks), [stocks])
+
+  const stockTableHoldings = useMemo(
+    () => [...partition.stocksOnly, ...partition.etfs],
+    [partition.stocksOnly, partition.etfs]
+  )
 
   useEffect(() => {
     if (stocks.length > 0 && stocks.some((s) => s.currentPrice === null)) {
@@ -149,21 +66,21 @@ export default function USStocks({ showToast }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const filtered = useMemo(() => {
-    if (!filter) return stocks
-    const q = filter.toLowerCase()
-    return stocks.filter(
-      (s) => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
-    )
-  }, [stocks, filter])
-
-  const { sorted, sortKey, sortDir, setSort } = useSortable(
-    filtered, 'currentValue', 'desc', getSortVal
-  )
-
   const totals = useMemo(() => calcTotals(stocks), [stocks])
-  const totalDayChange = useMemo(
-    () => stocks.reduce((sum, s) => sum + (s.dayChange ?? 0), 0),
+  const totalDayChange = useMemo(() => {
+    let sum = 0
+    let hasAny = false
+    for (const s of stocks) {
+      if (s.dayChange != null && s.qty != null) {
+        sum += s.dayChange * s.qty
+        hasAny = true
+      }
+    }
+    return hasAny ? sum : null
+  }, [stocks])
+
+  const realizedPnl = useMemo(
+    () => calcRealizedGain(storage.getTransactions(), 'usStock'),
     [stocks]
   )
 
@@ -181,17 +98,18 @@ export default function USStocks({ showToast }) {
   const handleAdd = useCallback(
     (data) => {
       addStock(data)
-      setShowAdd(false)
-      showToast('US stock added successfully', 'success')
+      setAddCategory(null)
+      const labels = { stock: 'US stock', espp: 'ESPP holding', rsu: 'RSU holding' }
+      showToast(`${labels[data.category] || 'Holding'} added successfully`, 'success')
     },
     [addStock, showToast]
   )
 
   const handleEdit = useCallback(
     (data) => {
-      updateStock(editStock.id, data)
+      updateStock(editStock.id, { ...data, category: editStock.category || US_CATEGORY.STOCK })
       setEditStock(null)
-      showToast('Stock updated', 'success')
+      showToast('Holding updated', 'success')
     },
     [editStock, updateStock, showToast]
   )
@@ -208,13 +126,17 @@ export default function USStocks({ showToast }) {
   }, [refreshPrices, showToast])
 
   const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
-  const summaryClass = totals.totalPnl == null ? '' : totals.totalPnl >= 0 ? ' summary-gain' : ' summary-loss'
+  const pnlClr = totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'text-gain' : 'text-loss') : ''
 
-  const SortTh = ({ col, children, className = '' }) => (
-    <th className={`sortable-th${className ? ' ' + className : ''}`} onClick={() => setSort(col)}>
-      {children} <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </th>
-  )
+  const stockSubtitle = buildStockSubtitle(partition)
+
+  const filteredCount = useMemo(() => {
+    if (!filter) return stocks.length
+    const q = filter.toLowerCase()
+    return stocks.filter(
+      (s) => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    ).length
+  }, [stocks, filter])
 
   return (
     <div className="page">
@@ -223,149 +145,176 @@ export default function USStocks({ showToast }) {
           <div className="section-title">US Stocks</div>
           <div className="section-subtitle">
             {stocks.length} holding{stocks.length !== 1 ? 's' : ''}
+            {partition.etfCount > 0 && (
+              <span className="us-etf-summary-pill">{partition.etfCount} ETF</span>
+            )}
             {usdInr && (
               <span className="fx-rate-badge">1 USD = ₹{usdInr.toFixed(2)}</span>
             )}
           </div>
         </div>
         <div className="section-header-right">
-          {lastUpdated && (
-            <div className="live-badge">
-              <span className="live-dot" />
-              Last updated:{' '}
-              {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          )}
+          <LiveBadge lastUpdated={lastUpdated} />
           <button
+            type="button"
             className="btn btn-secondary btn-sm"
             onClick={handleRefresh}
             disabled={loading || !stocks.length}
           >
-            {loading ? '⏳ Refreshing...' : '↻ Refresh Prices'}
+            {loading ? 'Refreshing...' : '↻ Refresh Prices'}
           </button>
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+          {usdInr && stocks.length > 0 && (
+            <button
+              type="button"
+              className={`btn btn-sm${showInr ? ' btn-primary' : ' btn-secondary'}`}
+              onClick={() => setShowInr((v) => !v)}
+              title={showInr ? 'Switch to USD' : `Convert to ₹ (1 USD = ₹${usdInr.toFixed(2)})`}
+            >
+              {showInr ? '$ USD' : '₹ INR'}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" onClick={() => setAddCategory('stock')}>
             + Add Stock
           </button>
         </div>
       </div>
 
       {stocks.length === 0 ? (
-        <EmptyState onAdd={() => setShowAdd(true)} />
+        <EmptyState onAddStock={() => setAddCategory('stock')} />
       ) : (
-        <div className="table-wrap">
-          <div className="table-filter-bar">
-            <div className="filter-input-wrap">
-              <input
-                className="filter-input"
-                type="text"
-                placeholder="Filter holdings…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                aria-label="Filter holdings"
+        <div className="us-holdings-panel">
+          {!loading && (() => {
+            const fx = showInr && usdInr ? usdInr : null
+            const fmtMain = fx ? (v) => formatINR(v * fx, true) : (v) => formatUSD(v)
+            const fmtSub = fx ? (v) => formatINR(v * fx) : (v) => (usdInr ? formatINR(v * usdInr, true) : null)
+            const fmtChgMain = fx ? (v) => formatINR(v * fx, true) : (v) => formatChange(v, 'USD')
+            const fmtChgSub = fx ? (v) => formatChange(v * fx) : null
+            const todayVal = totalDayChange != null ? fx ? totalDayChange * fx : totalDayChange : null
+            const realizedVal = realizedPnl != null ? (fx ? realizedPnl * fx : realizedPnl) : null
+            return (
+              <SummaryBar
+                variant="elevated"
+                metrics={[
+                  {
+                    label: 'Current Value',
+                    value: totals.totalCurrent != null ? fmtMain(totals.totalCurrent) : '—',
+                    sub: totals.totalCurrent != null ? (fmtSub(totals.totalCurrent) || null) : null,
+                  },
+                  {
+                    label: 'Investments',
+                    value: fmtMain(totals.totalInvested),
+                    sub: fmtSub(totals.totalInvested) || null,
+                  },
+                  {
+                    label: "Today's Gain/Loss",
+                    value: todayVal != null ? fmtChgMain(todayVal) : '—',
+                    sub: todayVal != null && fmtChgSub ? fmtChgSub(totalDayChange) : (todayVal != null && !fx ? formatChange(totalDayChange, 'USD') : null),
+                    colorClass: todayVal != null ? pnlColorClass(todayVal) : '',
+                    accent: todayVal != null ? (todayVal > 0 ? 'gain' : todayVal < 0 ? 'loss' : null) : null,
+                  },
+                  {
+                    label: 'Notional Gain/Loss',
+                    value: totals.totalPnl != null ? fmtChgMain(fx ? totals.totalPnl * fx : totals.totalPnl) : '—',
+                    sub: totals.totalPnl != null
+                      ? `${fmtChgSub ? fmtChgSub(totals.totalPnl) : formatChange(totals.totalPnl, 'USD')} (${formatPct(totals.totalPnlPct)})`
+                      : null,
+                    colorClass: pnlClr,
+                    accent: totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'gain' : 'loss') : null,
+                    pulse: pulsing,
+                  },
+                  {
+                    label: 'Total Realized Gain/Loss',
+                    value: realizedVal != null ? fmtChgMain(realizedVal) : '—',
+                    sub: realizedVal != null && fmtChgSub
+                      ? fmtChgSub(realizedPnl)
+                      : (realizedVal != null ? formatChange(realizedPnl, 'USD') : null),
+                    colorClass: realizedVal != null ? pnlColorClass(realizedVal) : '',
+                    accent: realizedVal != null ? (realizedVal > 0 ? 'gain' : realizedVal < 0 ? 'loss' : null) : null,
+                  },
+                ]}
               />
-              {filter && (
-                <button className="filter-clear" onClick={() => setFilter('')} aria-label="Clear filter">×</button>
-              )}
-            </div>
-            {filter && (
-              <span className="filter-count" aria-live="polite">{filtered.length} of {stocks.length}</span>
-            )}
-          </div>
+            )
+          })()}
+
+          <FilterBar
+            value={filter}
+            onChange={setFilter}
+            total={stocks.length}
+            filtered={filteredCount}
+          />
 
           {allPricesNull && !loading && (
             <div className="prices-unavailable">
               <span>Prices unavailable</span>
-              <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>↻ Retry</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleRefresh}>
+                ↻ Retry
+              </button>
             </div>
           )}
 
-          <div className="table-scroll">
-            <table>
-              <caption className="sr-only">US stock holdings with current prices and performance</caption>
-              <thead>
-                <tr>
-                  <SortTh col="symbol">Symbol</SortTh>
-                  <th>Name</th>
-                  <SortTh col="qty" className="right">Qty</SortTh>
-                  <SortTh col="invested" className="right">Buy Price</SortTh>
-                  <th className="right">CMP (USD)</th>
-                  <SortTh col="invested" className="right">Invested</SortTh>
-                  <SortTh col="currentValue" className="right">Current Value</SortTh>
-                  <th className="right">P&amp;L (USD)</th>
-                  <SortTh col="pnlPct" className="right">P&amp;L %</SortTh>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <SkeletonRows count={stocks.length || 4} />
-                ) : sorted.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="filter-no-results">No holdings match "{filter}"</td>
-                  </tr>
-                ) : (
-                  sorted.map((s) => (
-                    <StockRow
-                      key={s.id}
-                      stock={s}
-                      usdInr={usdInr}
-                      onEdit={setEditStock}
-                      onDelete={setDeleteStock}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="us-sections-stack">
+            <USHoldingsSection
+              title="Stocks & ETFs"
+              subtitle={stockSubtitle}
+              holdings={stockTableHoldings}
+              loading={loading}
+              filter={filter}
+              usdInr={usdInr}
+              showInr={showInr}
+              showEtfBadge
+              emptyMessage="Add US-listed stocks or ETFs — ETFs are auto-tagged when detected."
+              onAdd={() => setAddCategory('stock')}
+              addLabel="+ Add Stock"
+              onEdit={setEditStock}
+              onDelete={setDeleteStock}
+            />
+
+
+            <USHoldingsSection
+              title="ESPP"
+              subtitle="Employee Stock Purchase Plan"
+              holdings={partition.espp}
+              loading={loading}
+              filter={filter}
+              usdInr={usdInr}
+              showInr={showInr}
+              emptyMessage="No ESPP holdings — add shares from your company purchase plan."
+              onAdd={() => setAddCategory('espp')}
+              addLabel="+ Add ESPP"
+              onEdit={setEditStock}
+              onDelete={setDeleteStock}
+            />
+
+            <USHoldingsSection
+              title="RSU"
+              subtitle="Restricted Stock Units"
+              holdings={partition.rsu}
+              loading={loading}
+              filter={filter}
+              usdInr={usdInr}
+              showInr={showInr}
+              emptyMessage="No RSU holdings — add vested units with vest date and cost basis."
+              onAdd={() => setAddCategory('rsu')}
+              addLabel="+ Add RSU"
+              onEdit={setEditStock}
+              onDelete={setDeleteStock}
+            />
           </div>
-
-          {!loading && (
-            <div className={`table-summary${summaryClass}`}>
-              <div className="table-summary-item">
-                <span className="label">Total Invested</span>
-                <span className="value">
-                  {formatUSD(totals.totalInvested)}
-                  {usdInr && (
-                    <span className="summary-inr-hint">({formatINR(totals.totalInvested * usdInr)})</span>
-                  )}
-                </span>
-              </div>
-              {totals.totalCurrent != null && (
-                <>
-                  <div className="table-summary-item">
-                    <span className="label">Current Value</span>
-                    <span className="value">
-                      {formatUSD(totals.totalCurrent)}
-                      {usdInr && (
-                        <span className="summary-inr-hint">({formatINR(totals.totalCurrent * usdInr)})</span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="table-summary-item">
-                    <span className="label">Total P&amp;L</span>
-                    <span className={`value pnl-value${pulsing ? ' pnl-pulse' : ''} ${totals.totalPnl >= 0 ? 'text-gain' : 'text-loss'}`}>
-                      {formatChange(totals.totalPnl, 'USD')} ({formatPct(totals.totalPnlPct)})
-                    </span>
-                  </div>
-                  {totalDayChange !== 0 && (
-                    <div className="table-summary-item">
-                      <span className="label">Today</span>
-                      <span className={`value ${totalDayChange >= 0 ? 'text-gain' : 'text-loss'}`}>
-                        {formatChange(totalDayChange, 'USD')}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
         </div>
       )}
 
-      {showAdd && (
-        <AddStockModal mode="us" onSave={handleAdd} onClose={() => setShowAdd(false)} />
+      {addCategory && (
+        <AddStockModal
+          mode="us"
+          usCategory={addCategory}
+          onSave={handleAdd}
+          onClose={() => setAddCategory(null)}
+        />
       )}
       {editStock && (
         <AddStockModal
           mode="us"
+          usCategory={editStock.category || US_CATEGORY.STOCK}
           initial={editStock}
           onSave={handleEdit}
           onClose={() => setEditStock(null)}
@@ -373,7 +322,7 @@ export default function USStocks({ showToast }) {
       )}
       {deleteStock && (
         <ConfirmDialog
-          title="Remove Stock"
+          title="Remove Holding"
           message={`Remove ${deleteStock.name} (${deleteStock.symbol}) from your portfolio?`}
           onConfirm={handleDelete}
           onCancel={() => setDeleteStock(null)}

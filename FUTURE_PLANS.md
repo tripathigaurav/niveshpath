@@ -24,11 +24,11 @@ Phases 1 and 2 are complete. This document tracks everything planned from Phase 
 
 > **Urgent.** All data lives in LocalStorage — one browser clear wipes everything. This must ship before any more data features are added.
 
-- [ ] One-click export portfolio as JSON (download to disk)
-- [ ] Import portfolio from JSON backup (full restore)
-- [ ] Auto-backup reminder toast if no export has been done in 7+ days
-- [ ] Show last export date in profile/settings
-- [ ] **Transaction log model** — record each buy/sell as `(date, symbol, qty, price)`. Required now because Phase 4 XIRR cannot work without purchase dates. Existing holdings should prompt user to backfill dates on first use.
+- [x] One-click export portfolio as JSON (download to disk)
+- [x] Import portfolio from JSON backup (full restore)
+- [x] Auto-backup reminder toast if no export has been done in 7+ days
+- [x] Show last export date in profile/settings
+- [x] **Transaction log model** — record each buy/sell as `(date, symbol, qty, price)`. Required now because Phase 4 XIRR cannot work without purchase dates. Existing holdings should prompt user to backfill dates on first use.
 
 ### ⚠️ Watch Out
 
@@ -40,13 +40,11 @@ Do not block the app if the user skips entering historical purchase dates. Make 
 
 ---
 
-## Phase 4 — Analytics, Gold & Dashboard
+## Phase 4 — Analytics & Dashboard
 
 - [ ] **XIRR calculation** — annualized return per holding and for the overall portfolio. Requires transaction log from Phase 3.
-- [ ] **Gold tracking** — MCX INR/10g (Indian) + international USD/oz via Yahoo Finance. Add as an asset type in Other Assets with auto price fetch.
-- [ ] **Dashboard page**
-  - Total portfolio value + day change (₹ and %)
-  - Allocation pie chart by asset type (Indian stocks, US stocks, MFs, other)
+- [ ] **Dashboard page enhancements**
+  - Polish and modernize the existing dashboard UI
   - Top 3 gainers / top 3 losers
 - [ ] **Portfolio value history chart** — store daily snapshots and render a line graph over time.
   - Use **IndexedDB** (via the `idb` wrapper library) — NOT LocalStorage. LocalStorage has a ~5 MB cap that will overflow with time-series data. Keep holdings and transactions in LocalStorage; use IndexedDB only for snapshots.
@@ -131,17 +129,31 @@ If the user imports the same CSV twice, do not double-count holdings. Match on `
 
 ---
 
-## Phase 7 — Tax Reports & Mobile
+## Phase 7 — Tax Reports & Sharing
 
 - [ ] **STCG / LTCG calculation** with grandfathering rule (Jan 31, 2018 FMV as cost basis for Indian equities held before that date)
 - [ ] **Tax harvesting suggestions** — identify holdings with unrealized losses that can offset realized gains
 - [ ] **Downloadable tax summary PDF** — generated fully client-side using `jsPDF` + `jsPDF-AutoTable`
+- [ ] **Portfolio sharing via read-only encoded URL** — no server storage; encode portfolio summary (aggregates only, no personal data) into URL params or a client-side hash
+
+---
+
+## Future Enhancements (Beyond Phase 7)
+
+### Mobile Optimization
 - [ ] **Mobile responsive layout**
   - Hamburger / bottom-nav for phones and tablets
   - Card-based holdings instead of tables on small screens
   - Bottom sheet modals on mobile
   - Touch-friendly tap targets, `inputmode="decimal"` on numeric inputs
-- [ ] **Portfolio sharing via read-only encoded URL** — no server storage; encode portfolio summary (aggregates only, no personal data) into URL params or a client-side hash
+
+### Additional Features
+- [ ] **Gold tracking** — MCX INR/10g (Indian) + international USD/oz via Yahoo Finance. Add as an asset type in Other Assets with auto price fetch.
+- [ ] **Crypto tracking** — integrate with CoinGecko or similar API for cryptocurrency prices
+- [ ] **Multi-currency support** — support portfolios in multiple base currencies beyond INR
+- [ ] **Portfolio comparison** — compare performance against benchmark indices (Nifty 50, Sensex, S&P 500)
+- [ ] **Dividend tracking** — record dividend income and show yield calculations
+- [ ] **Corporate actions** — handle stock splits, bonus issues, mergers automatically
 
 ### ⚠️ Watch Out
 
@@ -154,12 +166,6 @@ Tax rules are jurisdiction-specific and change with each Union Budget. Always di
 **PDF generation must stay client-side**
 Use `jsPDF` + `jsPDF-AutoTable` — 100% in-browser, no server call. The moment you introduce server-side PDF generation, portfolio data leaves the browser and the "no cloud" promise is broken.
 
-**Mobile testing**
-Test on real phones, not just Chrome DevTools responsive mode. Key issues to check:
-- Table horizontal scroll with sticky first column
-- Number input keyboards (`inputmode="decimal"`)
-- Safe area insets for notched/Dynamic Island phones (`env(safe-area-inset-*)`)
-- Tap target size (minimum 44×44 px)
 
 **Sharing links**
 Encode only portfolio summary (totals, allocation percentages, top gainers) — never raw data, names, or account details. Show a clear preview of what will be shared before generating the link. Keep links read-only with no way to import or modify from a shared link.

@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useClickOutside } from '../hooks/useClickOutside'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import GlobalSearch from './GlobalSearch'
 import ThemeToggle from './ThemeToggle'
 import { MAIN_TABS as BASE_MAIN_TABS, MORE_TABS } from '../config/tabs'
@@ -41,13 +43,8 @@ function MoreMenu({ activeTab, onTabChange }) {
   const isActive = MORE_IDS.includes(activeTab)
   const activeMoreTab = MORE_TABS.find((t) => t.id === activeTab)
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  const closeMenu = useCallback(() => setOpen(false), [])
+  useClickOutside(wrapRef, closeMenu, open)
 
   useEffect(() => {
     if (!open) return
@@ -106,6 +103,9 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
   const { userName, avatarColor, theme } = settings
   const initials = getInitials(userName)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const drawerRef = useRef(null)
+
+  useFocusTrap(drawerRef, drawerOpen, () => setDrawerOpen(false))
 
   useEffect(() => {
     if (!drawerOpen) return
@@ -192,7 +192,7 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
       {/* Mobile slide-out drawer */}
       {drawerOpen && (
         <div className="nav-drawer-overlay" onClick={() => setDrawerOpen(false)}>
-          <nav className="nav-drawer" onClick={(e) => e.stopPropagation()}>
+          <nav className="nav-drawer" ref={drawerRef} onClick={(e) => e.stopPropagation()}>
             <div className="nav-drawer-header">
               <div className="logo-wordmark">
                 <span className="logo-hindi">निवेश</span>

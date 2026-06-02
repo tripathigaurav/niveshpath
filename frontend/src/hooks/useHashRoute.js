@@ -6,7 +6,9 @@ const HASH_TO_TAB = {
   '#/indian-stocks': 'indianStocks',
   '#/us-stocks': 'usStocks',
   '#/mutual-funds': 'mutualFunds',
+  '#/insights': 'insights',
   '#/other-assets': 'otherAssets',
+  '#/insurance': 'insurance',
   '#/watchlist': 'watchlist',
 }
 

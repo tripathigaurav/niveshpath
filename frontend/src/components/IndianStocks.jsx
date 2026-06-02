@@ -5,73 +5,133 @@ import ConfirmDialog from './ConfirmDialog'
 import PnlBadge from './PnlBadge'
 import SkeletonRows from './SkeletonRows'
 import { formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
-import { calcPnl, calcTotals } from '../utils/pnl'
+import { calcTotals, calcIndianStockMetrics, pnlColorClass } from '../utils/pnl'
+import {
+  buildHoldingsSummaryMetrics,
+  calcRealizedGain,
+  sumTodayPnl,
+} from '../utils/summaryMetrics'
+import { storage } from '../utils/storage'
 import { useSortable } from '../hooks/useSortable'
+import SortTh from './SortTh'
+import FilterBar from './FilterBar'
+import LiveBadge from './LiveBadge'
+import SummaryBar from './SummaryBar'
+import {
+  IndianStockCard,
+  HoldingCardSkeleton,
+  HoldingCardsEmpty,
+} from './HoldingCards'
+import { partitionIndianHoldings } from '../utils/indianHoldings'
 
-function SortIcon({ col, sortKey, sortDir }) {
-  if (col !== sortKey) return <span className="sort-icon neutral">⇅</span>
-  return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>
+const COL_SPAN = 11
+
+function ColoredValue({ value, format = formatChange }) {
+  if (value == null) return <span className="text-3">—</span>
+  return <span className={pnlColorClass(value)}>{format(value)}</span>
 }
 
 const getSortVal = (stock, key) => {
+  const m = calcIndianStockMetrics(stock)
   switch (key) {
-    case 'symbol': return stock.symbol
-    case 'pnlPct': return calcPnl(stock).pnlPct
-    case 'currentValue': return stock.currentPrice != null ? stock.qty * stock.currentPrice : null
-    case 'invested': return stock.qty * stock.buyPrice
-    case 'qty': return stock.qty
-    default: return stock[key]
+    case 'symbol':
+      return stock.symbol
+    case 'ltp':
+      return m.ltp
+    case 'qty':
+      return stock.qty
+    case 'buyPrice':
+      return stock.buyPrice
+    case 'invested':
+      return m.invested
+    case 'dayChange':
+      return m.dayChangePerShare
+    case 'dayChangePct':
+      return m.dayChangePct
+    case 'currentValue':
+    case 'networth':
+      return m.current
+    case 'todayPnl':
+      return m.todayPnl
+    case 'pnl':
+      return m.pnl
+    case 'pnlPct':
+      return m.pnlPct
+    default:
+      return stock[key]
   }
 }
 
 function StockRow({ stock, onEdit, onDelete }) {
   const [expanded, setExpanded] = useState(false)
-  const { invested, current, pnl, pnlPct } = calcPnl(stock)
-  const rowCls = pnl == null ? 'row-neutral' : pnl > 0 ? 'row-gain' : 'row-loss'
+  const m = calcIndianStockMetrics(stock)
+  const rowCls = m.pnl == null ? 'row-neutral' : m.pnl > 0 ? 'row-gain' : 'row-loss'
 
   return (
     <>
-      <tr className={rowCls} onClick={() => setExpanded((v) => !v)}>
-        <td><div className="fw-700 fs-13">{stock.symbol}</div></td>
-        <td className="cell-name text-2">{stock.name}</td>
-        <td className="right mono">{stock.qty.toLocaleString('en-IN')}</td>
-        <td className="right mono">{formatINR(stock.buyPrice)}</td>
+      <tr
+        className={rowCls}
+        onClick={() => setExpanded((v) => !v)}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded((v) => !v)
+          }
+        }}
+      >
+        <td className="cell-company">
+          <div className="cell-company-symbol">
+            {stock.symbol}
+            {stock.isEtf && (
+              <span className="us-etf-badge in-etf-badge" title="Exchange-traded fund">ETF</span>
+            )}
+          </div>
+          <div className="cell-company-name">{stock.name}</div>
+        </td>
         <td className="right mono">
-          {stock.currentPrice != null ? (
-            <span className="fw-600">{formatINR(stock.currentPrice)}</span>
+          {m.ltp != null ? (
+            <span className="fw-600">{formatINR(m.ltp)}</span>
           ) : (
             <span className="text-3">—</span>
           )}
         </td>
-        <td className="right mono">{formatINR(invested)}</td>
+        <td className="right mono">{stock.qty.toLocaleString('en-IN')}</td>
+        <td className="right mono">{formatINR(stock.buyPrice)}</td>
+        <td className="right mono">{formatINR(m.invested)}</td>
+        <td className="right">
+          <ColoredValue value={m.dayChangePerShare} />
+        </td>
+        <td className="right">
+          {m.dayChangePct != null ? (
+            <span className={pnlColorClass(m.dayChangePct)}>{formatPct(m.dayChangePct)}</span>
+          ) : (
+            <span className="text-3">—</span>
+          )}
+        </td>
         <td className="right mono">
-          {current != null ? formatINR(current) : <span className="text-3">—</span>}
+          {m.current != null ? formatINR(m.current) : <span className="text-3">—</span>}
         </td>
         <td className="right">
-          {pnl != null ? (
-            <span className={pnl >= 0 ? 'text-gain' : 'text-loss'}>{formatChange(pnl)}</span>
-          ) : <span className="text-3">—</span>}
+          <ColoredValue value={m.todayPnl} />
         </td>
         <td className="right">
-          <PnlBadge value={pnl} pct={pnlPct} />
+          <ColoredValue value={m.pnl} />
+        </td>
+        <td className="right">
+          <PnlBadge value={m.pnl} pct={m.pnlPct} />
         </td>
       </tr>
       {expanded && (
         <tr className="expanded-row">
-          <td colSpan={9}>
+          <td colSpan={COL_SPAN}>
             <div className="row-details">
               <div className="row-details-meta">
                 <div className="row-details-meta-item">
                   Buy Date: <span>{stock.buyDate ? formatDate(stock.buyDate) : '—'}</span>
                 </div>
-                {stock.dayChange != null && (
-                  <div className="row-details-meta-item">
-                    Day Change:{' '}
-                    <span className={stock.dayChange >= 0 ? 'text-gain' : 'text-loss'}>
-                      {formatChange(stock.dayChange)} ({formatPct(stock.dayChangePct)})
-                    </span>
-                  </div>
-                )}
               </div>
               <div className="text-muted-sm">Corporate actions will appear here in Phase 4.</div>
               <div className="row-details-actions">
@@ -79,13 +139,13 @@ function StockRow({ stock, onEdit, onDelete }) {
                   className="btn btn-secondary btn-sm"
                   onClick={(e) => { e.stopPropagation(); onEdit(stock) }}
                 >
-                  ✏️ Edit
+                  Edit
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
                   onClick={(e) => { e.stopPropagation(); onDelete(stock) }}
                 >
-                  🗑 Delete
+                  Delete
                 </button>
               </div>
             </div>
@@ -139,9 +199,18 @@ export default function IndianStocks({ showToast }) {
     filtered, 'currentValue', 'desc', getSortVal
   )
 
+  const partition = useMemo(() => partitionIndianHoldings(stocks), [stocks])
+
+  const displaySorted = useMemo(() => {
+    const stocksOnly = sorted.filter((s) => !s.isEtf)
+    const etfs = sorted.filter((s) => s.isEtf)
+    return [...stocksOnly, ...etfs]
+  }, [sorted])
+
   const totals = useMemo(() => calcTotals(stocks), [stocks])
-  const totalDayChange = useMemo(
-    () => stocks.reduce((sum, s) => sum + (s.dayChange ?? 0), 0),
+  const totalTodayPnl = useMemo(() => sumTodayPnl(stocks), [stocks])
+  const realizedPnl = useMemo(
+    () => calcRealizedGain(storage.getTransactions(), 'indianStock'),
     [stocks]
   )
 
@@ -186,34 +255,27 @@ export default function IndianStocks({ showToast }) {
   }, [refreshPrices, showToast])
 
   const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
-  const summaryClass = totals.totalPnl == null ? '' : totals.totalPnl >= 0 ? ' summary-gain' : ' summary-loss'
-
-  const SortTh = ({ col, children, className = '' }) => (
-    <th className={`sortable-th${className ? ' ' + className : ''}`} onClick={() => setSort(col)}>
-      {children} <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </th>
-  )
 
   return (
     <div className="page">
       <div className="section-header">
         <div>
           <div className="section-title">Indian Stocks</div>
-          <div className="section-subtitle">{stocks.length} holding{stocks.length !== 1 ? 's' : ''}</div>
+          <div className="section-subtitle">
+            {stocks.length} holding{stocks.length !== 1 ? 's' : ''}
+            {partition.etfCount > 0 && (
+              <span className="us-etf-summary-pill">{partition.etfCount} ETF</span>
+            )}
+          </div>
         </div>
         <div className="section-header-right">
-          {lastUpdated && (
-            <div className="live-badge">
-              <span className="live-dot" />
-              Last updated: {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          )}
+          <LiveBadge lastUpdated={lastUpdated} />
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleRefresh}
             disabled={loading || !stocks.length}
           >
-            {loading ? '⏳ Refreshing...' : '↻ Refresh Prices'}
+            {loading ? 'Refreshing...' : 'Refresh Prices'}
           </button>
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
             + Add Stock
@@ -225,60 +287,79 @@ export default function IndianStocks({ showToast }) {
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="table-wrap">
-          <div className="table-filter-bar">
-            <div className="filter-input-wrap">
-              <input
-                ref={filterRef}
-                className="filter-input"
-                type="text"
-                placeholder="Filter holdings…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                aria-label="Filter holdings"
-              />
-              {filter && (
-                <button className="filter-clear" onClick={() => setFilter('')} aria-label="Clear filter">×</button>
-              )}
-            </div>
-            {filter && (
-              <span className="filter-count" aria-live="polite">{filtered.length} of {stocks.length}</span>
-            )}
-          </div>
+          {!loading && (
+            <SummaryBar
+              variant="elevated"
+              metrics={buildHoldingsSummaryMetrics({
+                totalCurrent: totals.totalCurrent,
+                totalInvested: totals.totalInvested,
+                todayPnl: totalTodayPnl,
+                totalPnl: totals.totalPnl,
+                totalPnlPct: totals.totalPnlPct,
+                realizedPnl,
+                pulsing,
+              })}
+            />
+          )}
+
+          <FilterBar
+            value={filter}
+            onChange={setFilter}
+            total={stocks.length}
+            filtered={filtered.length}
+            inputRef={filterRef}
+          />
 
           {allPricesNull && !loading && (
             <div className="prices-unavailable">
               <span>Prices unavailable</span>
               <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>
-                ↻ Retry
+                Retry
               </button>
             </div>
           )}
 
+
           <div className="table-scroll">
-            <table>
+            <table className="holdings-table holdings-table--indian">
               <caption className="sr-only">Indian stock holdings with current prices and performance</caption>
+              <colgroup>
+                <col style={{ width: '17%' }} /> {/* Company */}
+                <col style={{ width: '8%' }} />  {/* LTP */}
+                <col style={{ width: '5%' }} />  {/* Qty */}
+                <col style={{ width: '8%' }} />  {/* Avg Cost */}
+                <col style={{ width: '9%' }} />  {/* Invested */}
+                <col style={{ width: '8%' }} />  {/* Day ₹ */}
+                <col style={{ width: '7%' }} />  {/* Day % */}
+                <col style={{ width: '9%' }} />  {/* Networth */}
+                <col style={{ width: '9%' }} />  {/* Today */}
+                <col style={{ width: '11%' }} /> {/* P&L */}
+                <col style={{ width: '9%' }} />  {/* P&L % */}
+              </colgroup>
               <thead>
                 <tr>
-                  <SortTh col="symbol">Symbol</SortTh>
-                  <th>Name</th>
-                  <SortTh col="qty" className="right">Qty</SortTh>
-                  <SortTh col="invested" className="right">Buy Price</SortTh>
-                  <th className="right">CMP</th>
-                  <SortTh col="invested" className="right">Invested</SortTh>
-                  <SortTh col="currentValue" className="right">Current Value</SortTh>
-                  <th className="right">P&amp;L</th>
-                  <SortTh col="pnlPct" className="right">P&amp;L %</SortTh>
+                  <SortTh col="symbol" label="Company" className="cell-company" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="ltp" label="LTP" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="qty" label="Qty" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="buyPrice" label="Avg Cost" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="invested" label="Invested" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="dayChange" label="Day ₹" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="dayChangePct" label="Day %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="networth" label="Networth" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="todayPnl" label="Today" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="pnl" label="P&amp;L" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="pnlPct" label="P&amp;L %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <SkeletonRows count={stocks.length || 4} />
+                  <SkeletonRows count={stocks.length || 4} cols={COL_SPAN} />
                 ) : sorted.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="filter-no-results">No holdings match "{filter}"</td>
+                    <td colSpan={COL_SPAN} className="filter-no-results">No holdings match "{filter}"</td>
                   </tr>
                 ) : (
-                  sorted.map((s) => (
+                  displaySorted.map((s) => (
                     <StockRow
                       key={s.id}
                       stock={s}
@@ -289,38 +370,25 @@ export default function IndianStocks({ showToast }) {
                 )}
               </tbody>
             </table>
+
+            {loading ? (
+              <HoldingCardSkeleton count={stocks.length || 4} />
+            ) : sorted.length === 0 ? (
+              <HoldingCardsEmpty message={`No holdings match "${filter}"`} />
+            ) : (
+              <div className="holding-cards">
+                {displaySorted.map((s) => (
+                  <IndianStockCard
+                    key={s.id}
+                    stock={s}
+                    onEdit={setEditStock}
+                    onDelete={setDeleteStock}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {!loading && (
-            <div className={`table-summary${summaryClass}`}>
-              <div className="table-summary-item">
-                <span className="label">Total Invested</span>
-                <span className="value">{formatINR(totals.totalInvested)}</span>
-              </div>
-              {totals.totalCurrent != null && (
-                <>
-                  <div className="table-summary-item">
-                    <span className="label">Current Value</span>
-                    <span className="value">{formatINR(totals.totalCurrent)}</span>
-                  </div>
-                  <div className="table-summary-item">
-                    <span className="label">Total P&amp;L</span>
-                    <span className={`value pnl-value${pulsing ? ' pnl-pulse' : ''} ${totals.totalPnl >= 0 ? 'text-gain' : 'text-loss'}`}>
-                      {formatChange(totals.totalPnl)} ({formatPct(totals.totalPnlPct)})
-                    </span>
-                  </div>
-                  {totalDayChange !== 0 && (
-                    <div className="table-summary-item">
-                      <span className="label">Today</span>
-                      <span className={`value ${totalDayChange >= 0 ? 'text-gain' : 'text-loss'}`}>
-                        {formatChange(totalDayChange)}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
         </div>
       )}
 

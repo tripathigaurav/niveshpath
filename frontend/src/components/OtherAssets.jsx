@@ -6,13 +6,15 @@ import PnlBadge from './PnlBadge'
 import { formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
 import { calcOtherPnl, calcTotals } from '../utils/pnl'
 import { useSortable } from '../hooks/useSortable'
+import SortTh from './SortTh'
+import FilterBar from './FilterBar'
+import SummaryBar from './SummaryBar'
+import {
+  OtherAssetCard,
+  HoldingCardsEmpty,
+} from './HoldingCards'
 
 const TYPE_LABEL = Object.fromEntries(ASSET_TYPES.map((t) => [t.value, t.label]))
-
-function SortIcon({ col, sortKey, sortDir }) {
-  if (col !== sortKey) return <span className="sort-icon neutral">⇅</span>
-  return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>
-}
 
 const getSortVal = (asset, key) => {
   switch (key) {
@@ -31,12 +33,24 @@ function AssetRow({ asset, onEdit, onDelete }) {
 
   return (
     <>
-      <tr className={rowCls} onClick={() => setExpanded((v) => !v)}>
+      <tr
+        className={rowCls}
+        onClick={() => setExpanded((v) => !v)}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setExpanded((v) => !v)
+          }
+        }}
+      >
         <td><div className="fw-600 fs-13">{asset.name}</div></td>
-        <td>
+        <td className="col-day-change">
           <span className="asset-type-badge">{TYPE_LABEL[asset.type] ?? asset.type}</span>
         </td>
-        <td className="right mono">{formatINR(asset.investedAmount)}</td>
+        <td className="right mono col-buy-price">{formatINR(asset.investedAmount)}</td>
         <td className="right mono">
           {asset.currentValue != null ? (
             <span className="fw-600">{formatINR(asset.currentValue)}</span>
@@ -76,13 +90,13 @@ function AssetRow({ asset, onEdit, onDelete }) {
                   className="btn btn-secondary btn-sm"
                   onClick={(e) => { e.stopPropagation(); onEdit(asset) }}
                 >
-                  ✏️ Edit
+                  Edit
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
                   onClick={(e) => { e.stopPropagation(); onDelete(asset) }}
                 >
-                  🗑 Delete
+                  Delete
                 </button>
               </div>
             </div>
@@ -172,14 +186,6 @@ export default function OtherAssets({ showToast }) {
     showToast(`"${deleteAsset.name}" removed`, 'info')
   }, [deleteAsset, removeAsset, showToast])
 
-  const summaryClass = totals.totalPnl == null ? '' : totals.totalPnl >= 0 ? ' summary-gain' : ' summary-loss'
-
-  const SortTh = ({ col, children, className = '' }) => (
-    <th className={`sortable-th${className ? ' ' + className : ''}`} onClick={() => setSort(col)}>
-      {children} <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </th>
-  )
-
   return (
     <div className="page">
       <div className="section-header">
@@ -200,36 +206,48 @@ export default function OtherAssets({ showToast }) {
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="table-wrap">
-          <div className="table-filter-bar">
-            <div className="filter-input-wrap">
-              <input
-                className="filter-input"
-                type="text"
-                placeholder="Filter assets…"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                aria-label="Filter assets"
-              />
-              {filter && (
-                <button className="filter-clear" onClick={() => setFilter('')} aria-label="Clear filter">×</button>
-              )}
-            </div>
-            {filter && (
-              <span className="filter-count" aria-live="polite">{filtered.length} of {assets.length}</span>
-            )}
-          </div>
+          <SummaryBar variant="elevated" metrics={[
+            {
+              label: 'Investments',
+              value: formatINR(totals.totalInvested, true),
+              sub: formatINR(totals.totalInvested),
+            },
+            {
+              label: 'Current Value',
+              value: totals.totalCurrent != null ? formatINR(totals.totalCurrent, true) : '—',
+              sub: totals.totalCurrent != null ? formatINR(totals.totalCurrent) : 'Update assets to see value',
+            },
+            {
+              label: 'Gain / Loss',
+              value: totals.totalPnl != null ? formatINR(totals.totalPnl, true) : '—',
+              sub: totals.totalPnl != null
+                ? `${formatChange(totals.totalPnl)} (${formatPct(totals.totalPnlPct)})`
+                : null,
+              colorClass: totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'text-gain' : 'text-loss') : '',
+              accent: totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'gain' : 'loss') : null,
+              pulse: pulsing,
+            },
+          ]} />
+
+          <FilterBar
+            value={filter}
+            onChange={setFilter}
+            total={assets.length}
+            filtered={filtered.length}
+            placeholder="Filter assets…"
+          />
 
           <div className="table-scroll">
-            <table>
+            <table className="holdings-table">
               <caption className="sr-only">Other asset holdings with current value and performance</caption>
               <thead>
                 <tr>
-                  <SortTh col="symbol">Asset</SortTh>
-                  <th>Type</th>
-                  <SortTh col="invested" className="right">Invested</SortTh>
-                  <SortTh col="currentValue" className="right">Current Value</SortTh>
+                  <SortTh col="symbol" label="Asset" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <th className="col-day-change">Type</th>
+                  <SortTh col="invested" label="Invested" className="right col-buy-price" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="currentValue" label="Current Value" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <th className="right">Gain / Loss</th>
-                  <SortTh col="pnlPct" className="right">Return %</SortTh>
+                  <SortTh col="pnlPct" label="Return %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>
               <tbody>
@@ -249,28 +267,24 @@ export default function OtherAssets({ showToast }) {
                 )}
               </tbody>
             </table>
-          </div>
 
-          <div className={`table-summary${summaryClass}`}>
-            <div className="table-summary-item">
-              <span className="label">Total Invested</span>
-              <span className="value">{formatINR(totals.totalInvested)}</span>
-            </div>
-            {totals.totalCurrent != null && (
-              <>
-                <div className="table-summary-item">
-                  <span className="label">Known Current Value</span>
-                  <span className="value">{formatINR(totals.totalCurrent)}</span>
-                </div>
-                <div className="table-summary-item">
-                  <span className="label">Gain / Loss</span>
-                  <span className={`value pnl-value${pulsing ? ' pnl-pulse' : ''} ${totals.totalPnl >= 0 ? 'text-gain' : 'text-loss'}`}>
-                    {formatChange(totals.totalPnl)} ({formatPct(totals.totalPnlPct)})
-                  </span>
-                </div>
-              </>
+            {sorted.length === 0 ? (
+              <HoldingCardsEmpty message={`No assets match "${filter}"`} />
+            ) : (
+              <div className="holding-cards">
+                {sorted.map((a) => (
+                  <OtherAssetCard
+                    key={a.id}
+                    asset={a}
+                    typeLabel={TYPE_LABEL[a.type] ?? a.type}
+                    onEdit={setEditAsset}
+                    onDelete={setDeleteAsset}
+                  />
+                ))}
+              </div>
             )}
           </div>
+
         </div>
       )}
 

@@ -1,5 +1,5 @@
 export default function SkeletonRows({ count = 4, cols = 9 }) {
-  const widths = [70, 130, 50, 90, 90, 100, 100, 80, 70]
+  const widths = [120, 70, 50, 80, 90, 70, 60, 90, 80, 80, 60]
   return Array.from({ length: count }).map((_, i) => (
     <tr key={i} className="skeleton-row">
       {Array.from({ length: cols }).map((_, j) => (

@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useId, useRef } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 export default function ConfirmDialog({ title, message, onConfirm, onCancel, confirmLabel = 'Delete' }) {
   const modalRef = useRef(null)
+  const titleId = useId()
 
   useFocusTrap(modalRef, true, onCancel)
 
@@ -11,13 +12,13 @@ export default function ConfirmDialog({ title, message, onConfirm, onCancel, con
       className="modal-overlay"
       role="alertdialog"
       aria-modal="true"
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       onClick={(e) => e.target === e.currentTarget && onCancel()}
     >
       <div className="modal confirm-dialog" ref={modalRef} onClick={(e) => e.stopPropagation()}>
         <div className="confirm-body">
           <div className="confirm-icon">🗑️</div>
-          <h3 id="confirm-title">{title || 'Are you sure?'}</h3>
+          <h3 id={titleId}>{title || 'Are you sure?'}</h3>
           <p>{message || 'This action cannot be undone.'}</p>
         </div>
         <div className="modal-footer">

@@ -13,17 +13,19 @@ export const ASSET_TYPES = [
   { value: 'Other', label: '📦 Other' },
 ]
 
-const EMPTY = {
-  name: '',
-  type: 'FD',
-  investedAmount: '',
-  currentValue: '',
-  notes: '',
-  addedDate: new Date().toISOString().split('T')[0],
+function emptyForm() {
+  return {
+    name: '',
+    type: 'FD',
+    investedAmount: '',
+    currentValue: '',
+    notes: '',
+    addedDate: new Date().toISOString().split('T')[0],
+  }
 }
 
 export default function AddOtherAssetModal({ initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial || EMPTY)
+  const [form, setForm] = useState(() => initial || emptyForm())
   const [errors, setErrors] = useState({})
   const modalRef = useRef(null)
 

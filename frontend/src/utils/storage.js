@@ -6,7 +6,9 @@ const KEYS = {
   MUTUAL_FUNDS: 'pt_mutualFunds',
   SIPS: 'pt_sips',
   OTHER_ASSETS: 'pt_otherAssets',
+  INSURANCE: 'pt_insurance',
   WATCHLIST: 'pt_watchlist',
+  TRANSACTIONS: 'pt_transactions',
   SETTINGS: 'pt_settings',
 }
 
@@ -50,8 +52,14 @@ export const storage = {
   getOtherAssets: () => load(KEYS.OTHER_ASSETS, []),
   setOtherAssets: (v) => save(KEYS.OTHER_ASSETS, v),
 
+  getInsurance: () => load(KEYS.INSURANCE, []),
+  setInsurance: (v) => save(KEYS.INSURANCE, v),
+
   getWatchlist: () => load(KEYS.WATCHLIST, []),
   setWatchlist: (v) => save(KEYS.WATCHLIST, v),
+
+  getTransactions: () => load(KEYS.TRANSACTIONS, []),
+  setTransactions: (v) => save(KEYS.TRANSACTIONS, v),
 
   getSettings: () => {
     const defaults = {
@@ -61,6 +69,7 @@ export const storage = {
       autoRefreshInterval: 30,
       avatarColor: '',
       hasSeenWelcome: false,
+      lastExportAt: null,
     }
     const stored = load(KEYS.SETTINGS, null)
     if (!stored) return defaults
@@ -79,7 +88,9 @@ export const storage = {
     mutualFunds: load(KEYS.MUTUAL_FUNDS, []),
     sips: load(KEYS.SIPS, []),
     otherAssets: load(KEYS.OTHER_ASSETS, []),
+    insurance: load(KEYS.INSURANCE, []),
     watchlist: load(KEYS.WATCHLIST, []),
+    transactions: load(KEYS.TRANSACTIONS, []),
     settings: load(KEYS.SETTINGS, {}),
     exportedAt: new Date().toISOString(),
   }),
@@ -89,7 +100,9 @@ export const storage = {
       throw new Error('Invalid portfolio file')
     }
 
-    const arrayKeys = ['indianStocks', 'usStocks', 'mutualFunds', 'sips', 'otherAssets', 'watchlist']
+    const arrayKeys = [
+      'indianStocks', 'usStocks', 'mutualFunds', 'sips', 'otherAssets', 'insurance', 'watchlist', 'transactions',
+    ]
     for (const key of arrayKeys) {
       if (key in data && !Array.isArray(data[key])) {
         throw new Error('Invalid portfolio file')
@@ -105,7 +118,9 @@ export const storage = {
       mutualFunds:  KEYS.MUTUAL_FUNDS,
       sips:         KEYS.SIPS,
       otherAssets:  KEYS.OTHER_ASSETS,
+      insurance:    KEYS.INSURANCE,
       watchlist:    KEYS.WATCHLIST,
+      transactions: KEYS.TRANSACTIONS,
       settings:     KEYS.SETTINGS,
     }
 
@@ -122,5 +137,40 @@ export const storage = {
     }
 
     return { imported, skipped }
+  },
+
+  // Category-wise helpers — each category key matches the exportAll field names
+  CATEGORY_KEYS: {
+    indianStocks: 'pt_indianStocks',
+    usStocks:     'pt_usStocks',
+    mutualFunds:  'pt_mutualFunds',
+    otherAssets:  'pt_otherAssets',
+  },
+
+  exportCategory: (cat) => {
+    const keyMap = {
+      indianStocks: KEYS.INDIAN_STOCKS,
+      usStocks:     KEYS.US_STOCKS,
+      mutualFunds:  KEYS.MUTUAL_FUNDS,
+      otherAssets:  KEYS.OTHER_ASSETS,
+    }
+    if (!keyMap[cat]) throw new Error(`Unknown category: ${cat}`)
+    return {
+      category: cat,
+      data: load(keyMap[cat], []),
+      exportedAt: new Date().toISOString(),
+    }
+  },
+
+  importCategory: (cat, data) => {
+    const keyMap = {
+      indianStocks: KEYS.INDIAN_STOCKS,
+      usStocks:     KEYS.US_STOCKS,
+      mutualFunds:  KEYS.MUTUAL_FUNDS,
+      otherAssets:  KEYS.OTHER_ASSETS,
+    }
+    if (!keyMap[cat]) throw new Error(`Unknown category: ${cat}`)
+    if (!Array.isArray(data)) throw new Error('Category data must be an array')
+    save(keyMap[cat], data)
   },
 }

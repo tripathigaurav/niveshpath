@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, forwardRef } from 'react'
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useClickOutside } from '../hooks/useClickOutside'
 import { api } from '../utils/api'
 import { useDebounce } from '../hooks/useDebounce'
 
@@ -32,13 +33,9 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
   const inputRef = useRef(null)
   const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_MS)
 
-  // Expose focus() to parent via ref
-  useEffect(() => {
-    if (!ref) return
-    const focusable = { focus: () => inputRef.current?.focus() }
-    if (typeof ref === 'function') ref(focusable)
-    else ref.current = focusable
-  }, [ref])
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }))
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
@@ -71,13 +68,7 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
     }).finally(() => setSearching(false))
   }, [debouncedQuery])
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  useClickOutside(wrapRef, () => setOpen(false))
 
   const handleSelect = useCallback((result) => {
     onNavigate(result.tab)
@@ -110,6 +101,9 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
           autoComplete="off"
           spellCheck={false}
           aria-label="Search stocks and funds"
+          aria-expanded={open && results.length > 0}
+          aria-controls="gs-listbox"
+          aria-autocomplete="list"
         />
         {searching && <span className="gs-spinner" />}
         {query && !searching && (
@@ -124,7 +118,7 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
       </div>
 
       {open && results.length > 0 && (
-        <div className="gs-dropdown" role="listbox">
+        <div className="gs-dropdown" id="gs-listbox" role="listbox">
           {results.map((r, i) => (
             <div
               key={r.key}

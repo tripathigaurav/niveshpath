@@ -1,10 +1,14 @@
 export function formatINR(value, compact = false) {
   if (value === null || value === undefined || isNaN(value)) return '—'
-  if (compact && Math.abs(value) >= 1e7) {
-    return '₹' + (value / 1e7).toFixed(2) + ' Cr'
+  const abs = Math.abs(value)
+  if (compact && abs >= 1e7) {
+    return '₹\u00A0' + (value / 1e7).toFixed(2) + '\u00A0Cr'
   }
-  if (compact && Math.abs(value) >= 1e5) {
-    return '₹' + (value / 1e5).toFixed(2) + ' L'
+  if (compact && abs >= 1e5) {
+    return '₹\u00A0' + (value / 1e5).toFixed(2) + '\u00A0Lac'
+  }
+  if (compact && abs >= 1e3) {
+    return '₹\u00A0' + (value / 1e3).toFixed(2) + '\u00A0K'
   }
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
