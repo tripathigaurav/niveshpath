@@ -3,8 +3,10 @@ import { useClickOutside } from '../hooks/useClickOutside'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import GlobalSearch from './GlobalSearch'
 import ThemeToggle from './ThemeToggle'
+import NotificationsBell from './NotificationsBell'
 import { MAIN_TABS as BASE_MAIN_TABS, MORE_TABS } from '../config/tabs'
 import { getInitials } from '../utils/initials'
+import styles from './Navbar.module.css'
 
 const DASHBOARD_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="dashboard-icon">
@@ -24,11 +26,11 @@ const ALL_TABS = [...MAIN_TABS, ...MORE_TABS]
 function TabBtn({ tab, active, onTabChange }) {
   return (
     <button
-      className={`navbar-tab${active ? ' active' : ''}`}
+      className={[styles.navbarTab, active ? 'active' : ''].filter(Boolean).join(' ')}
       onClick={() => onTabChange(tab.id)}
     >
       {typeof tab.icon === 'string' ? (
-        <span className="tab-icon">{tab.icon}</span>
+        <span className={`${styles.tabIcon} tab-icon`}>{tab.icon}</span>
       ) : (
         tab.icon
       )}
@@ -61,9 +63,9 @@ function MoreMenu({ activeTab, onTabChange }) {
   }
 
   return (
-    <div className="more-wrap" ref={wrapRef}>
+    <div className={styles.moreWrap} ref={wrapRef}>
       <button
-        className={`navbar-tab more-btn${isActive ? ' active' : ''}`}
+        className={[styles.navbarTab, styles.moreBtn, isActive ? 'active' : ''].filter(Boolean).join(' ')}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
@@ -71,25 +73,25 @@ function MoreMenu({ activeTab, onTabChange }) {
       >
         {isActive && activeMoreTab ? (
           <>
-            <span className="tab-icon">{activeMoreTab.icon}</span>
+            <span className={`${styles.tabIcon} tab-icon`}>{activeMoreTab.icon}</span>
             <span className="tab-label">{activeMoreTab.label}</span>
           </>
         ) : (
           <span className="tab-label">More</span>
         )}
-        <span className="more-chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
+        <span className={styles.moreChevron} aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
 
       {open && (
-        <div className="more-dropdown" role="menu">
+        <div className={styles.moreDropdown} role="menu">
           {MORE_TABS.map((tab) => (
             <button
               key={tab.id}
-              className={`more-dropdown-item${activeTab === tab.id ? ' active' : ''}`}
+              className={[styles.moreDropdownItem, activeTab === tab.id ? 'active' : ''].filter(Boolean).join(' ')}
               onClick={() => handleSelect(tab.id)}
               role="menuitem"
             >
-              <span className="tab-icon">{tab.icon}</span>
+              <span className={`${styles.tabIcon} tab-icon`}>{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -99,7 +101,7 @@ function MoreMenu({ activeTab, onTabChange }) {
   )
 }
 
-export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen, onThemeToggle, searchRef }) {
+export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen, onThemeToggle, searchRef, showToast }) {
   const { userName, avatarColor, theme } = settings
   const initials = getInitials(userName)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -121,9 +123,9 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
 
   return (
     <>
-      <nav className="navbar">
+      <nav className={styles.navbar}>
         {/* Left — logo */}
-        <div className="navbar-logo">
+        <div className={styles.navbarLogo}>
           <svg viewBox="0 0 34 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="28">
             <defs>
               <linearGradient id="np-bar" x1="0" y1="1" x2="0" y2="0">
@@ -137,14 +139,14 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
             <path d="M 4.25 17 C 6 12 10 10 13.25 10 C 16.5 10 19 6 22.25 3" stroke="#3b82f6" strokeWidth="1.8" fill="none" strokeLinecap="round" />
             <path d="M 27 1 L 22.5 3 L 25 7" stroke="#3b82f6" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <div className="logo-wordmark">
-            <span className="logo-hindi">निवेश</span>
-            <span className="logo-path">Path</span>
+          <div className={styles.logoWordmark}>
+            <span className={styles.logoHindi}>निवेश</span>
+            <span className={styles.logoPath}>Path</span>
           </div>
         </div>
 
         {/* Center — main tabs + More */}
-        <div className="navbar-center">
+        <div className={styles.navbarCenter}>
           {MAIN_TABS.map((tab) => (
             <TabBtn
               key={tab.id}
@@ -153,67 +155,69 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
               onTabChange={onTabChange}
             />
           ))}
-          <div className="navbar-pipe" />
+          <div className={styles.navbarPipe} />
           <MoreMenu activeTab={activeTab} onTabChange={onTabChange} />
         </div>
 
         {/* Right — hamburger (mobile), search, theme toggle, profile pill */}
-        <div className="navbar-right">
+        <div className={styles.navbarRight}>
           <button
-            className="hamburger-btn"
+            className={styles.hamburgerBtn}
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation"
             aria-expanded={drawerOpen}
           >
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
-            <span className="hamburger-line" />
+            <span className={styles.hamburgerLine} />
+            <span className={styles.hamburgerLine} />
+            <span className={styles.hamburgerLine} />
           </button>
 
           <GlobalSearch ref={searchRef} onNavigate={onTabChange} />
 
           <ThemeToggle theme={theme} onToggle={onThemeToggle} />
 
-          <button className="user-pill" onClick={onProfileOpen} title="Profile">
+          <NotificationsBell showToast={showToast} />
+
+          <button className={styles.userPill} onClick={onProfileOpen} title="Profile">
             <span
-              className="user-pill-avatar"
+              className={styles.userPillAvatar}
               style={{ background: avatarColor || '#1e3a8a' }}
             >
               {initials}
             </span>
             {userName && (
-              <span className="user-pill-name">{userName.split(' ')[0]}</span>
+              <span className={styles.userPillName}>{userName.split(' ')[0]}</span>
             )}
-            <span className="user-pill-chevron">▾</span>
+            <span className={styles.userPillChevron}>▾</span>
           </button>
         </div>
       </nav>
 
       {/* Mobile slide-out drawer */}
       {drawerOpen && (
-        <div className="nav-drawer-overlay" onClick={() => setDrawerOpen(false)}>
-          <nav className="nav-drawer" ref={drawerRef} onClick={(e) => e.stopPropagation()}>
-            <div className="nav-drawer-header">
-              <div className="logo-wordmark">
-                <span className="logo-hindi">निवेश</span>
-                <span className="logo-path">Path</span>
+        <div className={styles.navDrawerOverlay} onClick={() => setDrawerOpen(false)}>
+          <nav className={styles.navDrawer} ref={drawerRef} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.navDrawerHeader}>
+              <div className={styles.logoWordmark}>
+                <span className={styles.logoHindi}>निवेश</span>
+                <span className={styles.logoPath}>Path</span>
               </div>
               <button
-                className="nav-drawer-close"
+                className={styles.navDrawerClose}
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close navigation"
               >
                 ×
               </button>
             </div>
-            <div className="nav-drawer-tabs">
+            <div className={styles.navDrawerTabs}>
               {ALL_TABS.map((tab) => (
                 <button
                   key={tab.id}
-                  className={`nav-drawer-tab${activeTab === tab.id ? ' active' : ''}`}
+                  className={[styles.navDrawerTab, activeTab === tab.id ? 'active' : ''].filter(Boolean).join(' ')}
                   onClick={() => handleTabChange(tab.id)}
                 >
-                  <span className="tab-icon">{tab.icon}</span>
+                  <span className={`${styles.tabIcon} tab-icon`}>{tab.icon}</span>
                   {tab.label}
                 </button>
               ))}

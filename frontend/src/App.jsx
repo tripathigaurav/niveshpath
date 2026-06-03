@@ -20,6 +20,8 @@ import {
   loadSamplePortfolio,
 } from './utils/portfolioBackup'
 import { backfillTransactionsFromHoldings } from './utils/transactions'
+import { seedLedgerPortfolioHistory } from './utils/portfolioSnapshots'
+import { estimateSamplePortfolioValueINR } from './utils/demoPortfolioHistory'
 import {
   countHoldingsMissingBuyDate,
   shouldShowXirrBackfillBanner,
@@ -32,7 +34,10 @@ import OtherAssets from './components/OtherAssets'
 import Insurance from './components/Insurance'
 import Watchlist from './components/Watchlist'
 import Insights from './components/Insights'
+import TaxReportModal from './components/TaxReportModal'
+import CSVImportWizard from './components/CSVImportWizard'
 import { useHashRoute } from './hooks/useHashRoute'
+import { usePortfolioMarketRefresh } from './hooks/usePortfolioMarketRefresh'
 
 const TAB_TITLES = {
   dashboard:    'Dashboard',
@@ -45,14 +50,30 @@ const TAB_TITLES = {
   watchlist:    'Watchlist',
 }
 
+function TabErrorFallback({ tabName, onRetry }) {
+  return (
+    <div className="tab-error" role="alert">
+      <h3>{tabName} encountered an error</h3>
+      <p>Other tabs still work. Try refreshing this tab.</p>
+      <button className="btn btn-primary" onClick={onRetry}>
+        Retry
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const [settings, setSettings] = useState(() => storage.getSettings())
   const [activeTab, setActiveTab] = useHashRoute()
   const [toasts, setToasts] = useState([])
   const [profileOpen, setProfileOpen] = useState(false)
+  const [taxReportOpen, setTaxReportOpen] = useState(false)
+  const [csvImportOpen, setCsvImportOpen] = useState(false)
   const [xirrBannerVisible, setXirrBannerVisible] = useState(() => shouldShowXirrBackfillBanner())
   const [missingBuyDates, setMissingBuyDates] = useState(() => countHoldingsMissingBuyDate().total)
   const searchRef = useRef(null)
+
+  usePortfolioMarketRefresh()
 
   useEffect(() => {
     backfillTransactionsFromHoldings()
@@ -151,9 +172,16 @@ export default function App() {
     window.setTimeout(() => window.location.reload(), 600)
   }, [showToast])
 
-  const handleLoadSample = useCallback(() => {
+  const handleLoadSample = useCallback(async () => {
     const data = loadSamplePortfolio()
     storage.importAll(data)
+    try {
+      await seedLedgerPortfolioHistory({
+        liveCurrentValue: estimateSamplePortfolioValueINR(),
+      })
+    } catch {
+      /* chart history is optional */
+    }
     showToast('Sample portfolio loaded — reloading…', 'success')
     window.setTimeout(() => window.location.reload(), 600)
   }, [showToast])
@@ -164,17 +192,32 @@ export default function App() {
 
   const renderTab = () => {
     const props = { showToast }
-    switch (activeTab) {
-      case 'dashboard':    return <Dashboard {...props} />
-      case 'indianStocks': return <IndianStocks {...props} />
-      case 'usStocks':     return <USStocks {...props} />
-      case 'mutualFunds':  return <MutualFunds {...props} />
-      case 'insights':     return <Insights {...props} />
-      case 'otherAssets':  return <OtherAssets {...props} />
-      case 'insurance':    return <Insurance {...props} />
-      case 'watchlist':    return <Watchlist {...props} />
-      default:             return <IndianStocks {...props} />
-    }
+    const content = (() => {
+      switch (activeTab) {
+        case 'dashboard':    return <Dashboard {...props} />
+        case 'indianStocks': return <IndianStocks {...props} />
+        case 'usStocks':     return <USStocks {...props} />
+        case 'mutualFunds':  return <MutualFunds {...props} />
+        case 'insights':     return <Insights {...props} />
+        case 'otherAssets':  return <OtherAssets {...props} />
+        case 'insurance':    return <Insurance {...props} />
+        case 'watchlist':    return <Watchlist {...props} />
+        default:             return <IndianStocks {...props} />
+      }
+    })()
+    return (
+      <ErrorBoundary
+        key={activeTab}
+        fallback={
+          <TabErrorFallback
+            tabName={TAB_TITLES[activeTab] ?? 'This tab'}
+            onRetry={() => setActiveTab(activeTab)}
+          />
+        }
+      >
+        {content}
+      </ErrorBoundary>
+    )
   }
 
   return (
@@ -192,6 +235,7 @@ export default function App() {
         onProfileOpen={() => setProfileOpen(true)}
         onThemeToggle={handleThemeToggle}
         searchRef={searchRef}
+        showToast={showToast}
       />
 
       <MarketStrip />
@@ -204,11 +248,9 @@ export default function App() {
       )}
 
       <main id="main-content">
-        <ErrorBoundary>
-          <div className="tab-content" key={activeTab}>
-            {renderTab()}
-          </div>
-        </ErrorBoundary>
+        <div className="tab-content">
+          {renderTab()}
+        </div>
       </main>
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -223,9 +265,29 @@ export default function App() {
           onCategoryExport={handleCategoryExport}
           onCategoryImport={handleCategoryImport}
           onLoadSample={handleLoadSample}
+          onOpenTaxReport={() => {
+            setProfileOpen(false)
+            setTaxReportOpen(true)
+          }}
+          onOpenCsvImport={() => {
+            setProfileOpen(false)
+            setCsvImportOpen(true)
+          }}
           showToast={showToast}
         />
       )}
+
+      <TaxReportModal
+        open={taxReportOpen}
+        onClose={() => setTaxReportOpen(false)}
+        showToast={showToast}
+      />
+
+      <CSVImportWizard
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        showToast={showToast}
+      />
     </ErrorBoundary>
   )
 }

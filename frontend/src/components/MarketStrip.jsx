@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../utils/api'
+import styles from './MarketStrip.module.css'
 
 const ORDERED_KEYS = [
   'nifty50', 'sensex', 'niftyBank', 'usdInr', 'sp500', 'nasdaq', 'gold', 'crude',
@@ -12,15 +13,15 @@ function Pill({ label, price, changePct, prefix = '' }) {
   const sign = isPos ? '+' : ''
 
   return (
-    <div className="ms-pill">
-      <span className="ms-label">{label}</span>
-      <span className="ms-price">
+    <div className={styles.msPill}>
+      <span className={styles.msLabel}>{label}</span>
+      <span className={styles.msPrice}>
         {prefix}{price != null
           ? price.toLocaleString('en-IN', { maximumFractionDigits: 2 })
           : '—'}
       </span>
       {changePct != null && (
-        <span className={`ms-change ${isPos ? 'pos' : isNeg ? 'neg' : ''}`}>
+        <span className={[styles.msChange, isPos ? styles.pos : isNeg ? styles.neg : ''].filter(Boolean).join(' ')}>
           {sign}{changePct.toFixed(2)}%
         </span>
       )}
@@ -30,7 +31,7 @@ function Pill({ label, price, changePct, prefix = '' }) {
 
 function SkeletonPill() {
   return (
-    <div className="ms-pill">
+    <div className={styles.msPill}>
       <span className="skeleton skeleton-pill" />
     </div>
   )
@@ -65,8 +66,8 @@ export default function MarketStrip() {
 
   if (error && !data) {
     return (
-      <div className="market-strip-dark market-strip-error">
-        <span className="market-strip-error-text">Market data unavailable</span>
+      <div className={`${styles.marketStripDark} ${styles.marketStripError}`}>
+        <span className={styles.marketStripErrorText}>Market data unavailable</span>
       </div>
     )
   }
@@ -94,7 +95,7 @@ export default function MarketStrip() {
 
     return pills.flatMap((p, i, arr) =>
       i < arr.length - 1
-        ? [p, <div key={`${trackPrefix}-sep-${i}`} className="ms-sep" />]
+        ? [p, <div key={`${trackPrefix}-sep-${i}`} className={styles.msSep} />]
         : [p]
     )
   }
@@ -103,11 +104,11 @@ export default function MarketStrip() {
   const track2 = buildTrack('t2')
 
   return (
-    <div className="market-strip-dark">
-      <div className="ms-ticker" role="marquee" aria-label="Market overview">
-        <div className="ms-ticker-wrap">
-          <div className="ms-ticker-track">{track1}</div>
-          <div className="ms-ticker-track" aria-hidden="true">{track2}</div>
+    <div className={styles.marketStripDark}>
+      <div className={styles.msTicker} role="marquee" aria-label="Market overview">
+        <div className={styles.msTickerWrap}>
+          <div className={styles.msTickerTrack}>{track1}</div>
+          <div className={styles.msTickerTrack} aria-hidden="true">{track2}</div>
         </div>
       </div>
     </div>

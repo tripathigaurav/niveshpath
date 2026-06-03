@@ -1,123 +1,193 @@
 # निवेश Path (Nivesh Path)
 
-A modern, bilingual portfolio tracker for Indian and international investments.
+A modern portfolio tracker for Indian and international investments. All holdings live in your browser; the backend only fetches public market prices.
 
-## Features
-
-✅ **Phase 1 & 2 Complete:**
-- 🇮🇳 Indian Stocks tracking with live NSE/BSE prices
-- 🇺🇸 US Stocks tracking with live prices
-- 📊 Mutual Funds with NAV updates via AMFI
-- 💰 Other Assets (Gold, Real Estate, FDs, etc.)
-- 🔍 Global search across all holdings
-- 📈 Live market ticker strip
-- 🌓 Dark/Light theme with Groww-inspired design
-- 📱 Fully responsive with mobile hamburger menu
-- ♿ WCAG accessibility compliant
-- 🔒 Security hardened (input validation, rate limiting, CORS)
-
-## Tech Stack
-
-**Frontend:**
-- React 18 with Vite
-- CSS3 with custom properties
-- Modern responsive design
-
-**Backend:**
-- Flask (Python)
-- yfinance for stock data
-- AMFI API proxy for mutual fund NAV
-- Flask-Limiter for rate limiting
-- CORS protection
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
+
 - Python 3.8+
 - Node.js 16+
 
-### Installation
+### Backend
 
-1. **Backend Setup:**
 ```bash
 cd backend
 pip install -r requirements.txt
 python app.py
 ```
 
-Backend runs on `http://localhost:5000`
+Backend runs on `http://localhost:5000`.
 
-2. **Frontend Setup:**
+### Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`
+Frontend runs on `http://localhost:5199` by default (`strictPort: false` picks the next free port if busy). `./deploy-local.sh` prints the actual URL.
+
+### All-in-one (repo root)
+
+```bash
+./deploy-local.sh
+# Optional: ./deploy-local.sh --frontend-port 5200 --backend-port 5001
+# See ./deploy-local.sh --help
+```
+
+Ports used are saved to `.local-dev-ports` and printed in the terminal.
+
+### Tests
+
+```bash
+cd frontend
+npm test          # run once
+npm run test:watch
+```
+
+### Deploying the frontend only (GitHub Pages, etc.)
+
+The UI is static; **prices and market data need the API**. Copy `frontend/.env.example` to `frontend/.env` and set:
+
+```bash
+VITE_API_BASE=https://your-flask-host.example.com/api
+```
+
+Then `npm run build` and deploy `frontend/dist`.
+
+---
+
+## Features
+
+### Portfolio Tracking
+
+- Indian stocks (NSE/BSE) with live prices via Yahoo Finance
+- US stocks with USD/INR conversion
+- Mutual funds with NAV from AMFI
+- Other assets (FD, PPF, EPF, NPS, Real Estate, Gold, Bonds, Crypto)
+- P&L calculation: absolute + percentage, per-holding + totals
+- Day change tracking with live badge
+
+### Dashboard
+
+- Total portfolio value across all asset types
+- Allocation breakdown
+- Today's gain/loss
+- Top gainers/losers
+
+### Data Management
+
+- Export portfolio as JSON (one-click backup)
+- Import portfolio from JSON (restore/migrate)
+- All data stored in browser localStorage — nothing uploaded
+
+### Search & Navigation
+
+- Global search across stocks + mutual funds (⌘K / Ctrl+K)
+- Hash-based routing (deep links, browser back/forward)
+- Column sorting with persistence per table
+- Inline table filtering
+
+### UI/UX
+
+- Dark/light theme with system-quality polish
+- Mobile responsive (hamburger menu, card layout, bottom sheets)
+- Skeleton loading states
+- Toast notifications
+- Accessibility: focus traps, ARIA, keyboard navigation, skip-nav, reduced-motion support
+
+### Backend
+
+- Flask proxy for Yahoo Finance + AMFI (no API keys needed)
+- Input validation (regex on symbols, length caps on search)
+- Rate limiting (Flask-Limiter)
+- CORS locked to frontend origin
+- Thread-safe caching (30s market data, 24h MF NAV)
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Vite 6, Vanilla CSS |
+| Backend | Flask 3.1, yfinance, Flask-Limiter |
+| Storage | Browser localStorage (no database) |
+| Testing | Vitest, @testing-library/react |
+
+---
+
+## Data Privacy
+
+All portfolio data is stored in browser localStorage only. The backend is a local price-fetching proxy — it never stores or transmits your portfolio data.
+
+**Important:** Export your portfolio regularly — localStorage data does not survive browser resets or clearing site data.
+
+---
+
+## Phase Progress
+
+- [x] Phase 1 — Foundation (Indian Stocks + Backend)
+- [x] Phase 2 — US Stocks, Mutual Funds, Other Assets, Dashboard
+- [x] Phase 2.5 — Security hardening, responsive design, accessibility, code quality
+- [ ] Phase 3 — Data Safety (backup reminders, transaction log)
+- [ ] Phase 4 — Analytics (XIRR, Gold tracking, portfolio history)
+- [ ] Phase 5 — Live Data (auto-refresh, watchlist, alerts)
+- [ ] Phase 6 — SIP Tracker & Broker Import
+- [ ] Phase 7 — Tax Reports & Mobile Polish
+
+See [FUTURE_PLANS.md](FUTURE_PLANS.md) for detailed roadmap.
+
+---
 
 ## Project Structure
 
 ```
+Portfolio tracker/
 ├── backend/
-│   ├── app.py              # Flask server with API endpoints
-│   └── requirements.txt    # Python dependencies
+│   ├── app.py              Flask server (price proxy + market data)
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── utils/          # Utility functions
-│   │   ├── hooks/          # Custom React hooks
-│   │   ├── config/         # Configuration files
-│   │   ├── App.jsx         # Main app component
-│   │   └── App.css         # Global styles
+│   │   ├── components/     React components
+│   │   │   ├── IndianStocks.jsx, USStocks.jsx, MutualFunds.jsx
+│   │   │   ├── OtherAssets.jsx, Dashboard.jsx
+│   │   │   ├── AddStockModal.jsx, AddMFModal.jsx, AddOtherAssetModal.jsx
+│   │   │   ├── Navbar.jsx, GlobalSearch.jsx, MarketStrip.jsx
+│   │   │   ├── ProfileModal.jsx, WelcomeModal.jsx, ConfirmDialog.jsx
+│   │   │   ├── HoldingCards.jsx (mobile card view)
+│   │   │   ├── SortTh.jsx, SortIcon.jsx, FilterBar.jsx, LiveBadge.jsx
+│   │   │   ├── PnlBadge.jsx, SkeletonRows.jsx, ProgressBar.jsx
+│   │   │   ├── ErrorBoundary.jsx, Toast.jsx, ThemeToggle.jsx
+│   │   │   └── (shared components used across all pages)
+│   │   ├── hooks/
+│   │   │   ├── usePortfolio.js   (Indian, US, MF, Other assets)
+│   │   │   ├── useSortable.js    (table sorting with persistence)
+│   │   │   ├── useFocusTrap.js   (modal accessibility)
+│   │   │   ├── useHashRoute.js   (URL routing)
+│   │   │   ├── useClickOutside.js
+│   │   │   └── useDebounce.js
+│   │   ├── utils/
+│   │   │   ├── storage.js  (localStorage with export/import/validation)
+│   │   │   ├── api.js      (fetch wrapper with timeout)
+│   │   │   ├── pnl.js      (P&L calculations for all asset types)
+│   │   │   ├── formatters.js (INR/USD/percentage formatting)
+│   │   │   └── initials.js
+│   │   ├── config/tabs.js
+│   │   ├── App.jsx, App.css, main.jsx
+│   │   └── test/           Vitest test files
 │   ├── package.json
+│   ├── vitest.config.js
 │   └── vite.config.js
+├── CHANGELOG.md
+├── FUTURE_PLANS.md
 └── README.md
 ```
 
-## Features in Detail
-
-### Holdings Management
-- Add, edit, delete holdings across all asset types
-- Automatic price/NAV updates
-- Real-time P&L calculations
-- Sortable tables with filters
-- Bulk import/export via JSON
-
-### UI/UX
-- Sticky navbar with breadcrumb navigation
-- Animated market ticker strip
-- Skeleton loaders for smooth loading states
-- Toast notifications for user feedback
-- Modal dialogs with focus trapping
-- Keyboard shortcuts (Cmd/Ctrl + K for search)
-
-### Accessibility
-- ARIA labels and roles throughout
-- Keyboard navigation support
-- Screen reader friendly
-- Focus management in modals
-- Skip navigation link
-
-### Security
-- Input validation on all endpoints
-- Rate limiting (60 req/min)
-- CORS restricted to localhost
-- No sensitive data in localStorage
-- Safe JSON parsing with error handling
-
-## Roadmap
-
-- **Phase 3:** Dashboard with charts and analytics
-- **Phase 4:** Transaction history and dividends
-- **Phase 5:** Watchlist functionality
-- **Phase 6:** Broker import (Zerodha, Groww, Upstox)
-- **Phase 7:** Goals and portfolio recommendations
+---
 
 ## License
 
-Personal project - All rights reserved
-
-## Author
-
-Built with ❤️ for better investment tracking
+Personal project — all rights reserved.

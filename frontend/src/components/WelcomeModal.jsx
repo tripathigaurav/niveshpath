@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import styles from './WelcomeModal.module.css'
 
 export default function WelcomeModal({ onSave }) {
   const [name, setName] = useState('')
@@ -19,9 +20,9 @@ export default function WelcomeModal({ onSave }) {
       aria-modal="true"
       aria-labelledby="welcome-title"
     >
-      <div className="modal welcome-modal" ref={modalRef}>
+      <div className={`modal ${styles.welcomeModal}`} ref={modalRef}>
         <div className="modal-body">
-          <div className="welcome-icon">
+          <div className={styles.welcomeIcon}>
             <svg viewBox="0 0 34 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="40">
               <defs>
                 <linearGradient id="wm-bar" x1="0" y1="1" x2="0" y2="0">
@@ -56,7 +57,7 @@ export default function WelcomeModal({ onSave }) {
             </button>
             <button
               type="button"
-              className="welcome-skip-btn"
+              className={styles.welcomeSkipBtn}
               onClick={() => onSave('')}
             >
               Skip for now

@@ -3,8 +3,9 @@ import { useIndianStocks } from '../hooks/usePortfolio'
 import AddStockModal from './AddStockModal'
 import ConfirmDialog from './ConfirmDialog'
 import PnlBadge from './PnlBadge'
+import styles from './IndianStocks.module.css'
 import SkeletonRows from './SkeletonRows'
-import { formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
+import { formatINR, formatPct, formatChange } from '../utils/formatters'
 import { calcTotals, calcIndianStockMetrics, pnlColorClass } from '../utils/pnl'
 import {
   buildHoldingsSummaryMetrics,
@@ -12,6 +13,12 @@ import {
   sumTodayPnl,
 } from '../utils/summaryMetrics'
 import { storage } from '../utils/storage'
+import {
+  calcCategoryXirr,
+  calcHoldingXirr,
+  formatXirrDisplay,
+  buildHoldingXirrMap,
+} from '../utils/xirrMetrics'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import FilterBar from './FilterBar'
@@ -22,9 +29,9 @@ import {
   HoldingCardSkeleton,
   HoldingCardsEmpty,
 } from './HoldingCards'
-import { partitionIndianHoldings } from '../utils/indianHoldings'
-
-const COL_SPAN = 11
+import IndianHoldingDetailModal from './IndianHoldingDetailModal'
+import MarketStatusBar from './MarketStatusBar'
+const COL_SPAN = 12
 
 function ColoredValue({ value, format = formatChange }) {
   if (value == null) return <span className="text-3">—</span>
@@ -57,28 +64,27 @@ const getSortVal = (stock, key) => {
       return m.pnl
     case 'pnlPct':
       return m.pnlPct
+    case 'xirr':
+      return calcHoldingXirr(stock, 'indianStock', storage.getTransactions())
     default:
       return stock[key]
   }
 }
 
-function StockRow({ stock, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
+function StockRow({ stock, xirr, onOpenDetail }) {
   const m = calcIndianStockMetrics(stock)
   const rowCls = m.pnl == null ? 'row-neutral' : m.pnl > 0 ? 'row-gain' : 'row-loss'
 
   return (
-    <>
       <tr
-        className={rowCls}
-        onClick={() => setExpanded((v) => !v)}
+        className={`${rowCls} holdings-row--clickable`}
+        onClick={() => onOpenDetail(stock)}
         tabIndex={0}
         role="button"
-        aria-expanded={expanded}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            setExpanded((v) => !v)
+            onOpenDetail(stock)
           }
         }}
       >
@@ -86,7 +92,7 @@ function StockRow({ stock, onEdit, onDelete }) {
           <div className="cell-company-symbol">
             {stock.symbol}
             {stock.isEtf && (
-              <span className="us-etf-badge in-etf-badge" title="Exchange-traded fund">ETF</span>
+              <span className={`us-etf-badge ${styles.inEtfBadge}`} title="Exchange-traded fund">ETF</span>
             )}
           </div>
           <div className="cell-company-name">{stock.name}</div>
@@ -123,36 +129,12 @@ function StockRow({ stock, onEdit, onDelete }) {
         <td className="right">
           <PnlBadge value={m.pnl} pct={m.pnlPct} />
         </td>
+        <td className="right mono">
+          <span className={xirr != null ? pnlColorClass(xirr) : 'text-3'}>
+            {formatXirrDisplay(xirr)}
+          </span>
+        </td>
       </tr>
-      {expanded && (
-        <tr className="expanded-row">
-          <td colSpan={COL_SPAN}>
-            <div className="row-details">
-              <div className="row-details-meta">
-                <div className="row-details-meta-item">
-                  Buy Date: <span>{stock.buyDate ? formatDate(stock.buyDate) : '—'}</span>
-                </div>
-              </div>
-              <div className="text-muted-sm">Corporate actions will appear here in Phase 4.</div>
-              <div className="row-details-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onEdit(stock) }}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onDelete(stock) }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
   )
 }
 
@@ -184,6 +166,7 @@ export default function IndianStocks({ showToast }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editStock, setEditStock] = useState(null)
   const [deleteStock, setDeleteStock] = useState(null)
+  const [detailStock, setDetailStock] = useState(null)
   const [filter, setFilter] = useState('')
   const filterRef = useRef(null)
 
@@ -196,10 +179,8 @@ export default function IndianStocks({ showToast }) {
   }, [stocks, filter])
 
   const { sorted, sortKey, sortDir, setSort } = useSortable(
-    filtered, 'currentValue', 'desc', getSortVal
+    filtered, 'currentValue', 'desc', getSortVal, 'indian'
   )
-
-  const partition = useMemo(() => partitionIndianHoldings(stocks), [stocks])
 
   const displaySorted = useMemo(() => {
     const stocksOnly = sorted.filter((s) => !s.isEtf)
@@ -212,6 +193,15 @@ export default function IndianStocks({ showToast }) {
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'indianStock'),
     [stocks]
+  )
+  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const xirrById = useMemo(
+    () => buildHoldingXirrMap(stocks, 'indianStock', transactions),
+    [stocks, transactions]
+  )
+  const xirrRate = useMemo(
+    () => calcCategoryXirr('indianStock', stocks, transactions),
+    [stocks, transactions]
   )
 
   const [pulsing, setPulsing] = useState(false)
@@ -257,15 +247,12 @@ export default function IndianStocks({ showToast }) {
   const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
 
   return (
-    <div className="page">
+    <div className="page page--category">
       <div className="section-header">
         <div>
           <div className="section-title">Indian Stocks</div>
           <div className="section-subtitle">
             {stocks.length} holding{stocks.length !== 1 ? 's' : ''}
-            {partition.etfCount > 0 && (
-              <span className="us-etf-summary-pill">{partition.etfCount} ETF</span>
-            )}
           </div>
         </div>
         <div className="section-header-right">
@@ -275,7 +262,7 @@ export default function IndianStocks({ showToast }) {
             onClick={handleRefresh}
             disabled={loading || !stocks.length}
           >
-            {loading ? 'Refreshing...' : 'Refresh Prices'}
+            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh Prices'}
           </button>
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
             + Add Stock
@@ -283,10 +270,12 @@ export default function IndianStocks({ showToast }) {
         </div>
       </div>
 
+      <MarketStatusBar market="indian" />
+
       {stocks.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
-        <div className="table-wrap">
+        <div className="category-holdings-panel">
           {!loading && (
             <SummaryBar
               variant="elevated"
@@ -297,6 +286,7 @@ export default function IndianStocks({ showToast }) {
                 totalPnl: totals.totalPnl,
                 totalPnlPct: totals.totalPnlPct,
                 realizedPnl,
+                xirrRate,
                 pulsing,
               })}
             />
@@ -334,7 +324,8 @@ export default function IndianStocks({ showToast }) {
                 <col style={{ width: '9%' }} />  {/* Networth */}
                 <col style={{ width: '9%' }} />  {/* Today */}
                 <col style={{ width: '11%' }} /> {/* P&L */}
-                <col style={{ width: '9%' }} />  {/* P&L % */}
+                <col style={{ width: '8%' }} />  {/* P&L % */}
+                <col style={{ width: '8%' }} />  {/* XIRR */}
               </colgroup>
               <thead>
                 <tr>
@@ -349,6 +340,7 @@ export default function IndianStocks({ showToast }) {
                   <SortTh col="todayPnl" label="Today" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="pnl" label="P&amp;L" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="pnlPct" label="P&amp;L %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="xirr" label="XIRR" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>
               <tbody>
@@ -363,8 +355,8 @@ export default function IndianStocks({ showToast }) {
                     <StockRow
                       key={s.id}
                       stock={s}
-                      onEdit={setEditStock}
-                      onDelete={setDeleteStock}
+                      xirr={xirrById.get(s.id)}
+                      onOpenDetail={setDetailStock}
                     />
                   ))
                 )}
@@ -381,6 +373,7 @@ export default function IndianStocks({ showToast }) {
                   <IndianStockCard
                     key={s.id}
                     stock={s}
+                    onOpenDetail={setDetailStock}
                     onEdit={setEditStock}
                     onDelete={setDeleteStock}
                   />
@@ -411,6 +404,16 @@ export default function IndianStocks({ showToast }) {
           onCancel={() => setDeleteStock(null)}
         />
       )}
+
+      <IndianHoldingDetailModal
+        stock={detailStock}
+        open={!!detailStock}
+        onClose={() => setDetailStock(null)}
+        onEdit={setEditStock}
+        onDelete={setDeleteStock}
+        lastUpdated={lastUpdated}
+        showToast={showToast}
+      />
     </div>
   )
 }

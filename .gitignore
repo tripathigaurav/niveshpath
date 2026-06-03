@@ -52,6 +52,9 @@ build/
 Thumbs.db
 .DS_Store
 
+# Local dev (deploy-local.sh)
+.local-dev-ports
+
 # Project specific
 *.db
 *.sqlite

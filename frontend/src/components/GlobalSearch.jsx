@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import { useClickOutside } from '../hooks/useClickOutside'
 import { api } from '../utils/api'
 import { useDebounce } from '../hooks/useDebounce'
+import styles from './GlobalSearch.module.css'
 
 const SEARCH_DEBOUNCE_MS = 350
 const MAX_STOCK_RESULTS = 5
@@ -14,7 +15,7 @@ function SearchIcon() {
       height="13"
       viewBox="0 0 13 13"
       fill="none"
-      className="gs-icon"
+      className={styles.gsIcon}
       aria-hidden="true"
     >
       <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.5" />
@@ -86,12 +87,12 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
   }
 
   return (
-    <div className="gs-wrap" ref={wrapRef}>
-      <div className="gs-input-row">
+    <div className={styles.gsWrap} ref={wrapRef}>
+      <div className={styles.gsInputRow}>
         <SearchIcon />
         <input
           ref={inputRef}
-          className="gs-input"
+          className={styles.gsInput}
           type="text"
           placeholder="Search… ⌘K"
           value={query}
@@ -105,10 +106,10 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
           aria-controls="gs-listbox"
           aria-autocomplete="list"
         />
-        {searching && <span className="gs-spinner" />}
+        {searching && <span className={styles.gsSpinner} />}
         {query && !searching && (
           <button
-            className="gs-clear"
+            className={styles.gsClear}
             onMouseDown={(e) => { e.preventDefault(); setQuery(''); setResults([]); setOpen(false) }}
             aria-label="Clear search"
           >
@@ -118,31 +119,31 @@ const GlobalSearch = forwardRef(function GlobalSearch({ onNavigate }, ref) {
       </div>
 
       {open && results.length > 0 && (
-        <div className="gs-dropdown" id="gs-listbox" role="listbox">
+        <div className={styles.gsDropdown} id="gs-listbox" role="listbox">
           {results.map((r, i) => (
             <div
               key={r.key}
               role="option"
               aria-selected={i === activeIdx}
-              className={`gs-result${i === activeIdx ? ' active' : ''}`}
+              className={[styles.gsResult, i === activeIdx ? 'active' : ''].filter(Boolean).join(' ')}
               onMouseDown={() => handleSelect(r)}
               onMouseEnter={() => setActiveIdx(i)}
             >
-              <span className="gs-badge">{r.badge}</span>
-              <div className="gs-text">
-                <div className="gs-label">{r.label}</div>
-                <div className="gs-sub">{r.sub}</div>
+              <span className={styles.gsBadge}>{r.badge}</span>
+              <div className={styles.gsText}>
+                <div className={styles.gsLabel}>{r.label}</div>
+                <div className={styles.gsSub}>{r.sub}</div>
               </div>
-              <span className="gs-arrow">→</span>
+              <span className={styles.gsArrow}>→</span>
             </div>
           ))}
-          <div className="gs-footer">↑↓ navigate · Enter to go · Esc close</div>
+          <div className={styles.gsFooter}>↑↓ navigate · Enter to go · Esc close</div>
         </div>
       )}
 
       {open && !searching && query.length >= 2 && results.length === 0 && (
-        <div className="gs-dropdown">
-          <div className="gs-empty">No results for "{query}"</div>
+        <div className={styles.gsDropdown}>
+          <div className={styles.gsEmpty}>No results for "{query}"</div>
         </div>
       )}
     </div>

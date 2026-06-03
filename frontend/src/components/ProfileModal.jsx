@@ -4,6 +4,7 @@ import { getInitials } from '../utils/initials'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import ConfirmDialog from './ConfirmDialog'
 import { CATEGORIES } from '../utils/portfolioBackup'
+import styles from './ProfileModal.module.css'
 
 const AVATAR_COLORS = [
   '#1e3a8a', '#2563eb', '#7c3aed', '#db2777',
@@ -47,6 +48,8 @@ export default function ProfileModal({
   onCategoryExport,
   onCategoryImport,
   onLoadSample,
+  onOpenTaxReport,
+  onOpenCsvImport,
   showToast,
 }) {
   const [name, setName] = useState(settings.userName || '')
@@ -155,24 +158,24 @@ export default function ProfileModal({
         aria-labelledby="profile-modal-title"
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
-        <div className="modal profile-modal" ref={modalRef} onClick={(e) => e.stopPropagation()}>
-          <div className="profile-header">
-            <div className="profile-avatar-lg" style={{ background: avatarColor }}>
+        <div className={`modal ${styles.profileModal}`} ref={modalRef} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.profileHeader}>
+            <div className={styles.profileAvatarLg} style={{ background: avatarColor }}>
               {initials}
             </div>
-            <div className="profile-greeting" id="profile-modal-title">
+            <div className={styles.profileGreeting} id="profile-modal-title">
               {getGreeting(name || settings.userName)}
             </div>
           </div>
 
-          <div className="modal-body profile-modal-body">
-            <div className="profile-section">
-              <div className="profile-section-label">Display Name</div>
-              <div className="profile-name-row">
+          <div className={`modal-body ${styles.profileModalBody}`}>
+            <div className={styles.profileSection}>
+              <div className={styles.profileSectionLabel}>Display Name</div>
+              <div className={styles.profileNameRow}>
                 {editing ? (
                   <input
                     ref={inputRef}
-                    className="form-input profile-name-input"
+                    className={`form-input ${styles.profileNameInput}`}
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -184,11 +187,11 @@ export default function ProfileModal({
                     maxLength={32}
                   />
                 ) : (
-                  <span className="profile-name-value">{name || settings.userName || '—'}</span>
+                  <span className={styles.profileNameValue}>{name || settings.userName || '—'}</span>
                 )}
                 <button
                   type="button"
-                  className="btn btn-ghost profile-edit-btn"
+                  className={`btn btn-ghost ${styles.profileEditBtn}`}
                   onClick={() => setEditing((v) => !v)}
                   title={editing ? 'Cancel' : 'Edit name'}
                 >
@@ -197,15 +200,15 @@ export default function ProfileModal({
               </div>
             </div>
 
-            <div className="profile-section">
-              <div className="profile-section-label">Settings</div>
-              <div className="profile-setting-row">
-                <label className="profile-setting-label" htmlFor="refresh-interval-select">
+            <div className={styles.profileSection}>
+              <div className={styles.profileSectionLabel}>Settings</div>
+              <div className={styles.profileSettingRow}>
+                <label className={styles.profileSettingLabel} htmlFor="refresh-interval-select">
                   Auto-refresh prices
                 </label>
                 <select
                   id="refresh-interval-select"
-                  className="form-select profile-setting-select"
+                  className={`form-select ${styles.profileSettingSelect}`}
                   value={refreshInterval}
                   onChange={(e) => setRefreshInterval(Number(e.target.value))}
                 >
@@ -216,12 +219,24 @@ export default function ProfileModal({
               </div>
             </div>
 
-            <div className="profile-section">
-              <div className="profile-backup-heading">
-                <div className="profile-section-label">Backup &amp; Restore</div>
+            <div className={styles.profileSection}>
+              <div className={styles.profileSectionLabel}>Tools</div>
+              <div className={styles.profileToolsRow}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenTaxReport}>
+                  Tax report (STCG/LTCG)
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenCsvImport}>
+                  Import broker CSV
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.profileSection}>
+              <div className={styles.profileBackupHeading}>
+                <div className={styles.profileSectionLabel}>Backup &amp; Restore</div>
                 <button
                   type="button"
-                  className="profile-info-btn"
+                  className={styles.profileInfoBtn}
                   aria-label="Backup format help"
                   aria-expanded={backupInfoOpen}
                   onClick={() => setBackupInfoOpen((v) => !v)}
@@ -231,20 +246,20 @@ export default function ProfileModal({
                 </button>
               </div>
               {backupInfoOpen && (
-                <p className="profile-backup-info" role="note">
+                <p className={styles.profileBackupInfo} role="note">
                   Full backup exports all holdings, watchlist, and settings as JSON.
                   Category backup exports one section only. Import replaces data in this browser.
                 </p>
               )}
-              <div className="profile-backup-compact">
-                <div className="profile-backup-row profile-backup-row--all">
-                  <div className="profile-backup-row-main">
-                    <span className="profile-backup-row-label">All holdings</span>
-                    <span className="profile-last-export-inline">
+              <div className={styles.profileBackupCompact}>
+                <div className={`${styles.profileBackupRow} ${styles.profileBackupRowAll}`}>
+                  <div className={styles.profileBackupRowMain}>
+                    <span className={styles.profileBackupRowLabel}>All holdings</span>
+                    <span className={styles.profileLastExportInline}>
                       Last: {formatLastExport(settings.lastExportAt)}
                     </span>
                   </div>
-                  <div className="profile-backup-row-btns">
+                  <div className={styles.profileBackupRowBtns}>
                     <button
                       type="button"
                       className="btn btn-icon btn-secondary"
@@ -267,17 +282,17 @@ export default function ProfileModal({
                       ref={fileInputRef}
                       type="file"
                       accept="application/json,.json"
-                      className="profile-file-input"
+                      className={styles.profileFileInput}
                       aria-hidden="true"
                       tabIndex={-1}
                       onChange={handleFileChange}
                     />
                   </div>
                 </div>
-                <div className="profile-backup-row profile-backup-row--cat">
-                  <span className="profile-backup-row-label">Category</span>
+                <div className={`${styles.profileBackupRow} ${styles.profileBackupRowCat}`}>
+                  <span className={styles.profileBackupRowLabel}>Category</span>
                   <select
-                    className="form-select profile-cat-select-inline"
+                    className={`form-select ${styles.profileCatSelectInline}`}
                     value={selectedCat}
                     onChange={(e) => setSelectedCat(e.target.value)}
                     aria-label="Select category"
@@ -286,7 +301,7 @@ export default function ProfileModal({
                       <option key={c.key} value={c.key}>{c.label}</option>
                     ))}
                   </select>
-                  <div className="profile-backup-row-btns">
+                  <div className={styles.profileBackupRowBtns}>
                     <button
                       type="button"
                       className="btn btn-icon btn-secondary"
@@ -309,15 +324,15 @@ export default function ProfileModal({
                       ref={catFileInputRef}
                       type="file"
                       accept="application/json,.json"
-                      className="profile-file-input"
+                      className={styles.profileFileInput}
                       aria-hidden="true"
                       tabIndex={-1}
                       onChange={handleCatFileChange}
                     />
                   </div>
                 </div>
-                <div className="profile-backup-row profile-backup-row--demo">
-                  <span className="profile-backup-row-label">Demo</span>
+                <div className={`${styles.profileBackupRow} ${styles.profileBackupRowDemo}`}>
+                  <span className={styles.profileBackupRowLabel}>Demo</span>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -368,7 +383,7 @@ export default function ProfileModal({
       {confirmSample && (
         <ConfirmDialog
           title="Load sample portfolio?"
-          message="This replaces your current data with demo holdings (Indian stocks + NIFTYBEES ETF, US stocks/ETF/ESPP/RSU, 2 mutual funds, 1 FD). Export first if you need a backup."
+          message="This replaces your current data with demo holdings (buys over the last year) and seeds ~5 years of portfolio value history for the Dashboard chart. Export first if you need a backup."
           confirmLabel="Load sample"
           onConfirm={() => {
             setConfirmSample(false)

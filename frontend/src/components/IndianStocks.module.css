@@ -1,0 +1,6 @@
+/* IndianStocks uses shared global styles for tables and layout.
+   Component-specific overrides live here. */
+
+.inEtfBadge {
+  vertical-align: middle;
+}

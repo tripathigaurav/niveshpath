@@ -3,7 +3,7 @@ import re
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 import requests
 import yfinance as yf
@@ -13,8 +13,21 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
-# Lock to frontend dev origin. Update for production.
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+
+def _cors_origins():
+    env = os.getenv("CORS_ORIGINS", "").strip()
+    if env:
+        return [o.strip() for o in env.split(",") if o.strip()]
+    # Default dev origins (5199 = निवेश Path Vite default; 5173 = stock Vite default)
+    ports = (5199, 5174, 5173, 3000)
+    origins = []
+    for port in ports:
+        origins.append(f"http://localhost:{port}")
+        origins.append(f"http://127.0.0.1:{port}")
+    return origins
+
+
+CORS(app, origins=_cors_origins())
 limiter = Limiter(get_remote_address, app=app, default_limits=["60 per minute"])
 
 # ─── Config constants ─────────────────────────────────────────────────────────
@@ -92,7 +105,7 @@ def get_single_price():
 
 
 @app.route("/api/stock/prices", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("30 per minute")
 def get_batch_prices():
     body = request.get_json(silent=True) or {}
     symbols = body.get("symbols", [])
@@ -328,6 +341,136 @@ def get_historical_nav():
         return jsonify({"error": "NAV not found for that date"}), 404
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+# ─── Portfolio upcoming events ───────────────────────────────────────────────
+
+
+def _coerce_date(val):
+    """Return a date object or None from yfinance / pandas values."""
+    if val is None:
+        return None
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    if hasattr(val, "date") and callable(val.date):
+        try:
+            return val.date()
+        except Exception:
+            pass
+    try:
+        return datetime.fromisoformat(str(val)[:10]).date()
+    except Exception:
+        return None
+
+
+def _upcoming_events_for_symbol(symbol: str, name: str, region: str, today: date, horizon_end: date) -> list:
+    events = []
+    try:
+        ticker = yf.Ticker(symbol)
+        cal = ticker.calendar
+
+        def _add_event(ev_date, ev_type, detail):
+            if ev_date is None or ev_date < today or ev_date > horizon_end:
+                return
+            events.append({
+                "symbol": symbol,
+                "name": name or symbol,
+                "region": region,
+                "type": ev_type,
+                "date": str(ev_date),
+                "detail": detail,
+            })
+
+        if cal is not None:
+            if isinstance(cal, dict):
+                earnings = cal.get("Earnings Date")
+                if earnings is not None:
+                    items = earnings if isinstance(earnings, (list, tuple)) else [earnings]
+                    for item in items:
+                        _add_event(_coerce_date(item), "earnings", "Earnings")
+                for key, ev_type, label in (
+                    ("Ex-Dividend Date", "dividend", "Ex-dividend"),
+                    ("Dividend Date", "dividend", "Dividend"),
+                ):
+                    raw = cal.get(key)
+                    if raw is not None:
+                        items = raw if isinstance(raw, (list, tuple)) else [raw]
+                        for item in items:
+                            _add_event(_coerce_date(item), ev_type, label)
+            elif hasattr(cal, "index"):
+                for idx in cal.index:
+                    label = str(idx)
+                    row = cal.loc[idx]
+                    val = row.iloc[0] if hasattr(row, "iloc") else row
+                    if "Earnings" in label:
+                        _add_event(_coerce_date(val), "earnings", "Earnings")
+                    elif "Dividend" in label or "Ex-Dividend" in label:
+                        _add_event(_coerce_date(val), "dividend", label)
+
+        info = getattr(ticker, "info", None) or {}
+        if isinstance(info, dict):
+            ex_div = info.get("exDividendDate")
+            if ex_div:
+                ts = ex_div
+                if isinstance(ts, (int, float)):
+                    ev_d = datetime.utcfromtimestamp(ts).date()
+                else:
+                    ev_d = _coerce_date(ts)
+                _add_event(ev_d, "dividend", "Ex-dividend")
+    except Exception:
+        pass
+    return events
+
+
+@app.route("/api/portfolio/upcoming-events", methods=["POST"])
+@limiter.limit("10 per minute")
+def portfolio_upcoming_events():
+    body = request.get_json(silent=True) or {}
+    holdings = body.get("holdings", [])
+    if not holdings:
+        return jsonify({"events": [], "days": 30})
+    try:
+        days = int(body.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    days = min(max(days, 1), 90)
+
+    today = date.today()
+    horizon_end = today + timedelta(days=days)
+    cleaned = []
+    for h in holdings[:BATCH_SYMBOLS_MAX]:
+        sym = str(h.get("symbol", "")).strip()
+        if not sym:
+            continue
+        sym, err = validate_symbol(sym)
+        if err:
+            continue
+        cleaned.append({
+            "symbol": sym,
+            "name": str(h.get("name", sym))[:80],
+            "region": str(h.get("region", "IN"))[:4],
+        })
+
+    def _fetch(h):
+        return _upcoming_events_for_symbol(
+            h["symbol"], h["name"], h["region"], today, horizon_end
+        )
+
+    all_events = []
+    with ThreadPoolExecutor(max_workers=min(len(cleaned), OVERVIEW_MAX_WORKERS)) as pool:
+        for batch in pool.map(_fetch, cleaned):
+            all_events.extend(batch)
+
+    seen = set()
+    unique = []
+    for ev in sorted(all_events, key=lambda e: e["date"]):
+        key = (ev["symbol"], ev["date"], ev["type"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(ev)
+
+    return jsonify({"events": unique, "days": days})
 
 
 # ─── Run ─────────────────────────────────────────────────────────────────────

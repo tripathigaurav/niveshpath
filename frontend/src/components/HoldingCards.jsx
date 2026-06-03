@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatINR, formatUSD, formatPct, formatChange, formatDate, formatNumber } from '../utils/formatters'
-import { calcPnl, calcUsPnl, calcMfPnl, calcOtherPnl, calcIndianStockMetrics, pnlColorClass } from '../utils/pnl'
+import { calcUsPnl, calcMfPnl, calcOtherPnl, calcIndianStockMetrics, pnlColorClass } from '../utils/pnl'
 
 function CardActions({ onEdit, onDelete, item }) {
   return (
@@ -46,15 +46,25 @@ export function HoldingCardsEmpty({ message }) {
   )
 }
 
-export function IndianStockCard({ stock, onEdit, onDelete, showEtfBadge = true }) {
+export function IndianStockCard({ stock, onOpenDetail, onEdit, onDelete, showEtfBadge = true }) {
   const [expanded, setExpanded] = useState(false)
   const m = calcIndianStockMetrics(stock)
+
+  const handleCardClick = () => {
+    if (onOpenDetail) onOpenDetail(stock)
+    else setExpanded((v) => !v)
+  }
 
   return (
     <div
       className="holding-card"
-      onClick={() => setExpanded((v) => !v)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+      onClick={handleCardClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleCardClick()
+        }
+      }}
       role="button"
       tabIndex={0}
     >
@@ -82,7 +92,7 @@ export function IndianStockCard({ stock, onEdit, onDelete, showEtfBadge = true }
           )}
         </div>
       </div>
-      {expanded && (
+      {expanded && !onOpenDetail && (
         <div className="holding-card-details" onClick={(e) => e.stopPropagation()}>
           <div className="row-details-meta">
             <div className="row-details-meta-item">
@@ -118,16 +128,21 @@ export function IndianStockCard({ stock, onEdit, onDelete, showEtfBadge = true }
   )
 }
 
-export function USStockCard({ stock, usdInr, onEdit, onDelete, showEtfBadge = false }) {
+export function USStockCard({ stock, usdInr, onEdit, onDelete, onOpenDetail, showEtfBadge = false }) {
   const [expanded, setExpanded] = useState(false)
   const { investedUSD, currentUSD, pnlUSD, pnlPct } = calcUsPnl(stock)
   const toINR = (usd) => (usdInr && usd != null ? usd * usdInr : null)
 
+  const handleCardClick = () => {
+    if (onOpenDetail) onOpenDetail(stock)
+    else setExpanded((v) => !v)
+  }
+
   return (
     <div
       className="holding-card"
-      onClick={() => setExpanded((v) => !v)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+      onClick={handleCardClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick() } }}
       role="button"
       tabIndex={0}
     >
@@ -153,7 +168,7 @@ export function USStockCard({ stock, usdInr, onEdit, onDelete, showEtfBadge = fa
           )}
         </div>
       </div>
-      {expanded && (
+      {expanded && !onOpenDetail && (
         <div className="holding-card-details" onClick={(e) => e.stopPropagation()}>
           <div className="row-details-meta">
             <div className="row-details-meta-item">
@@ -178,15 +193,20 @@ export function USStockCard({ stock, usdInr, onEdit, onDelete, showEtfBadge = fa
   )
 }
 
-export function MutualFundCard({ fund, onEdit, onDelete }) {
+export function MutualFundCard({ fund, onEdit, onDelete, onOpenDetail }) {
   const [expanded, setExpanded] = useState(false)
   const { invested, current, pnl, pnlPct } = calcMfPnl(fund)
+
+  const handleCardClick = () => {
+    if (onOpenDetail) onOpenDetail(fund)
+    else setExpanded((v) => !v)
+  }
 
   return (
     <div
       className="holding-card"
-      onClick={() => setExpanded((v) => !v)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+      onClick={handleCardClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick() } }}
       role="button"
       tabIndex={0}
     >
@@ -206,7 +226,7 @@ export function MutualFundCard({ fund, onEdit, onDelete }) {
           </div>
         </div>
       </div>
-      {expanded && (
+      {expanded && !onOpenDetail && (
         <div className="holding-card-details" onClick={(e) => e.stopPropagation()}>
           <div className="row-details-meta">
             <div className="row-details-meta-item">
@@ -226,15 +246,20 @@ export function MutualFundCard({ fund, onEdit, onDelete }) {
   )
 }
 
-export function OtherAssetCard({ asset, typeLabel, onEdit, onDelete }) {
+export function OtherAssetCard({ asset, typeLabel, onEdit, onDelete, onOpenDetail }) {
   const [expanded, setExpanded] = useState(false)
   const { pnl, pnlPct } = calcOtherPnl(asset)
+
+  const handleCardClick = () => {
+    if (onOpenDetail) onOpenDetail(asset)
+    else setExpanded((v) => !v)
+  }
 
   return (
     <div
       className="holding-card"
-      onClick={() => setExpanded((v) => !v)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+      onClick={handleCardClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick() } }}
       role="button"
       tabIndex={0}
     >
@@ -252,7 +277,7 @@ export function OtherAssetCard({ asset, typeLabel, onEdit, onDelete }) {
           </div>
         </div>
       </div>
-      {expanded && (
+      {expanded && !onOpenDetail && (
         <div className="holding-card-details" onClick={(e) => e.stopPropagation()}>
           <div className="row-details-meta">
             <div className="row-details-meta-item">

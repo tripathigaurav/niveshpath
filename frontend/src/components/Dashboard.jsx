@@ -1,22 +1,29 @@
-import { useMemo } from 'react'
-import { useIndianStocks, useUSStocks, useMutualFunds, useOtherAssets } from '../hooks/usePortfolio'
+import { useMemo, useEffect, useState } from 'react'
+import { useIndianStocks, useUSStocks, useMutualFunds, useOtherAssets, useInsurance } from '../hooks/usePortfolio'
+import { summarizeInsurance, formatInsuranceRenewalsLine } from '../utils/insuranceMetrics'
+import UpcomingEventsCard from './UpcomingEventsCard'
+import { calcPortfolioXirr, formatXirrDisplay } from '../utils/xirrMetrics'
+import { recordDailySnapshot } from '../utils/portfolioSnapshots'
 import {
   calcIndianStockMetrics,
   calcUsPnl,
   calcMfPnl,
   sumTodayPnl,
+  sumPortfolioTodayPnl,
   pnlColorClass,
 } from '../utils/pnl'
 import { formatINR, formatUSD, formatChange, formatPct } from '../utils/formatters'
 import { storage } from '../utils/storage'
 import SummaryBar from './SummaryBar'
 import AllocationDonut from './AllocationDonut'
+import PortfolioHistoryChart from './PortfolioHistoryChart'
 
 const CATEGORY_META = {
   indian: { icon: '🇮🇳', accent: 'var(--blue)', title: 'Indian Stocks' },
   us: { icon: '🇺🇸', accent: 'var(--green)', title: 'US Stocks' },
   mf: { icon: '📋', accent: 'var(--purple, #7c3aed)', title: 'Mutual Funds' },
   other: { icon: '🏦', accent: 'var(--orange, #f59e0b)', title: 'Other Assets' },
+  insurance: { icon: '🛡️', accent: 'var(--teal, #0d9488)', title: 'Insurance' },
 }
 
 const ALLOC_COLORS = {
@@ -26,13 +33,16 @@ const ALLOC_COLORS = {
   'Other Assets': 'var(--orange, #f59e0b)',
 }
 
-function useAllTotals() {
-  const { stocks: inStocks, lastUpdated: inUpdated } = useIndianStocks()
-  const { stocks: usStocks, usdInr, lastUpdated: usUpdated } = useUSStocks()
+function useDashboardPortfolio() {
+  const { stocks: inStocks, lastUpdated: inUpdated, pricesStale: inPricesStale } =
+    useIndianStocks()
+  const { stocks: usStocks, usdInr, lastUpdated: usUpdated, pricesStale: usPricesStale } =
+    useUSStocks()
   const { funds, lastUpdated: mfUpdated } = useMutualFunds()
   const { assets } = useOtherAssets()
+  const { policies } = useInsurance()
 
-  return useMemo(() => {
+  const totals = useMemo(() => {
     let inInvested = 0
     let inCurrent = 0
     let inCurrentKnown = false
@@ -45,6 +55,12 @@ function useAllTotals() {
       }
     }
     const inToday = sumTodayPnl(inStocks)
+    const portfolioToday = sumPortfolioTodayPnl({
+      indianStocks: inStocks,
+      usStocks,
+      mutualFunds: funds,
+      usdInr,
+    })
 
     let usInvestedUSD = 0
     let usCurrentUSD = 0
@@ -99,14 +115,19 @@ function useAllTotals() {
       .filter(Boolean)
       .sort((a, b) => b - a)[0] ?? null
 
+    const insurance = summarizeInsurance(policies)
+    const usIncomplete = usStocks.length > 0 && usInvestedINR == null
+
     return {
       inInvested,
       inCurrent: inCurrentKnown ? inCurrent : null,
       inToday,
+      portfolioToday,
       usInvestedUSD,
       usCurrentUSD: usCurrentKnown ? usCurrentUSD : null,
       usInvestedINR,
       usCurrentINR,
+      usIncomplete,
       mfInvested,
       mfCurrent: mfCurrentKnown ? mfCurrent : null,
       otInvested,
@@ -117,14 +138,62 @@ function useAllTotals() {
       grandPnlPct,
       usdInr,
       lastUpdated,
+      insurance,
       counts: {
         indian: inStocks.length,
         us: usStocks.length,
         mf: funds.length,
         other: assets.length,
+        insurance: policies.length,
       },
     }
-  }, [inStocks, usStocks, usdInr, funds, assets, inUpdated, usUpdated, mfUpdated])
+  }, [inStocks, usStocks, usdInr, funds, assets, policies, inUpdated, usUpdated, mfUpdated])
+
+  return {
+    inStocks,
+    usStocks,
+    funds,
+    assets,
+    usdInr,
+    inUpdated,
+    totals,
+    pricesStale: inPricesStale || usPricesStale,
+  }
+}
+
+function InsuranceCategoryCard({ icon, accent, title, count, summary }) {
+  return (
+    <div
+      className="dash-cat-card dash-cat-card--insurance"
+      style={{ '--cat-accent': accent }}
+    >
+      <div className="dash-cat-header">
+        <span className="dash-cat-title-wrap">
+          <span className="dash-cat-icon" aria-hidden="true">{icon}</span>
+          <span className="dash-cat-title">{title}</span>
+        </span>
+        <span className="dash-cat-count">{count} polic{count !== 1 ? 'ies' : 'y'}</span>
+      </div>
+      <div className="dash-cat-body">
+        <div className="dash-cat-row">
+          <span className="dash-cat-label">Total cover</span>
+          <span className="dash-cat-val">
+            {summary.totalCover > 0 ? formatINR(summary.totalCover, true) : '—'}
+          </span>
+        </div>
+        <div className="dash-cat-row">
+          <span className="dash-cat-label">Annual premium</span>
+          <span className="dash-cat-val">
+            {summary.totalPremium > 0 ? formatINR(summary.totalPremium, true) : '—'}
+          </span>
+        </div>
+        <div className="dash-cat-row">
+          <span className="dash-cat-label">Renewals</span>
+          <span className="dash-cat-val">{formatInsuranceRenewalsLine(summary)}</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function CategoryCard({
@@ -189,39 +258,7 @@ function CategoryCard({
   )
 }
 
-const MOCK_UPCOMING_EVENTS = [
-  { id: '1', symbol: 'RELIANCE', detail: 'Dividend ₹10/share', date: 'Jul 15', icon: '🇮🇳', type: 'dividend' },
-  { id: '2', symbol: 'TCS', detail: 'Earnings', date: 'Jul 18', icon: '🇮🇳', type: 'earnings' },
-  { id: '3', symbol: 'HDFC Bank', detail: 'Dividend ₹19/share', date: 'Jul 22', icon: '🇮🇳', type: 'dividend' },
-]
-
-function UpcomingEventsCard() {
-  return (
-    <div className="dash-events-card">
-      <div className="dash-events-header">
-        <div className="dash-perf-title">Upcoming Events</div>
-        <span className="dash-events-badge">Preview</span>
-      </div>
-      <ul className="dash-events-list">
-        {MOCK_UPCOMING_EVENTS.map((ev) => (
-          <li key={ev.id} className="dash-events-item">
-            <span className={`dash-events-icon dash-events-icon--${ev.type}`} aria-hidden="true">
-              {ev.icon}
-            </span>
-            <div className="dash-events-body">
-              <span className="dash-events-symbol">{ev.symbol}</span>
-              <span className="dash-events-detail">{ev.detail}</span>
-            </div>
-            <span className="dash-events-date">{ev.date}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="dash-events-note">Sample events — calendar integration coming in a future update.</p>
-    </div>
-  )
-}
-
-function DashboardFooter({ lastUpdated }) {
+function DashboardFooter({ lastUpdated, pricesStale }) {
   const settings = storage.getSettings()
   const interval = settings.autoRefreshInterval ?? 0
   const intervalLabel = interval === 0
@@ -238,9 +275,9 @@ function DashboardFooter({ lastUpdated }) {
 
   return (
     <footer className="dash-footer">
-      <span className="dash-footer-live">
+      <span className={`dash-footer-live ${pricesStale ? 'dash-footer-live--stale' : ''}`}>
         <span className="dash-footer-dot" aria-hidden="true" />
-        Live
+        {pricesStale ? 'Cached prices' : 'Live'}
       </span>
       <span className="dash-footer-sep">·</span>
       <span>Last updated: {timeStr}</span>
@@ -251,8 +288,32 @@ function DashboardFooter({ lastUpdated }) {
 }
 
 export default function Dashboard() {
-  const t = useAllTotals()
-  const hasAny = t.counts.indian + t.counts.us + t.counts.mf + t.counts.other > 0
+  const { inStocks, usStocks, funds, assets, usdInr, inUpdated, totals: t, pricesStale } =
+    useDashboardPortfolio()
+  const hasInvestments =
+    t.counts.indian + t.counts.us + t.counts.mf + t.counts.other > 0
+  const hasAny = hasInvestments || t.counts.insurance > 0
+
+  const portfolioXirr = useMemo(
+    () => calcPortfolioXirr({
+      indianStocks: inStocks,
+      usStocks,
+      mutualFunds: funds,
+      transactions: storage.getTransactions(),
+      usdInr,
+    }),
+    [inStocks, usStocks, funds, usdInr]
+  )
+
+  const [snapshotRefresh, setSnapshotRefresh] = useState(0)
+
+  useEffect(() => {
+    if (t.grandCurrent != null) {
+      recordDailySnapshot(t.grandCurrent)
+        .then(() => setSnapshotRefresh((n) => n + 1))
+        .catch(() => {})
+    }
+  }, [t.grandCurrent])
 
   if (!hasAny) {
     return (
@@ -260,7 +321,7 @@ export default function Dashboard() {
         <div className="coming-soon" role="status" aria-live="polite">
           <div className="placeholder-icon" aria-hidden="true">📊</div>
           <h2>Dashboard</h2>
-          <p>Add holdings in any tab to see your portfolio summary here.</p>
+          <p>Add holdings or insurance policies to see your summary here.</p>
         </div>
       </div>
     )
@@ -290,7 +351,10 @@ export default function Dashboard() {
             {
               label: 'Total Invested',
               value: formatINR(t.grandInvested, true),
-              sub: formatINR(t.grandInvested),
+              sub: t.usIncomplete
+                ? 'Excludes US stocks (USD/INR unavailable)'
+                : formatINR(t.grandInvested),
+              warning: t.usIncomplete,
               icon: '💰',
             },
             {
@@ -301,10 +365,11 @@ export default function Dashboard() {
             },
             {
               label: "Today's Gain/Loss",
-              value: t.inToday != null ? formatINR(t.inToday, true) : '—',
-              sub: t.inToday != null ? formatChange(t.inToday) : 'Indian stocks only',
-              colorClass: t.inToday != null ? pnlColorClass(t.inToday) : '',
-              accent: t.inToday != null ? (t.inToday >= 0 ? 'gain' : 'loss') : null,
+              value: t.portfolioToday != null ? formatINR(t.portfolioToday, true) : '—',
+              sub: t.portfolioToday != null ? formatChange(t.portfolioToday) : 'No price data',
+              colorClass: t.portfolioToday != null ? pnlColorClass(t.portfolioToday) : '',
+              accent:
+                t.portfolioToday != null ? (t.portfolioToday >= 0 ? 'gain' : 'loss') : null,
               icon: '📅',
             },
             {
@@ -316,6 +381,16 @@ export default function Dashboard() {
               colorClass: grandPnlClr,
               accent: t.grandPnl != null ? (t.grandPnl >= 0 ? 'gain' : 'loss') : null,
               icon: '⚖️',
+            },
+            {
+              label: 'Portfolio XIRR',
+              value: formatXirrDisplay(portfolioXirr),
+              sub: portfolioXirr == null
+                ? (t.counts.us > 0 && !usdInr ? 'Refresh US prices for XIRR' : 'Add purchase dates')
+                : 'Annualized (INR)',
+              colorClass: portfolioXirr != null ? pnlColorClass(portfolioXirr) : '',
+              accent: portfolioXirr != null ? (portfolioXirr >= 0 ? 'gain' : 'loss') : null,
+              icon: '📊',
             },
           ]}
         />
@@ -370,7 +445,19 @@ export default function Dashboard() {
                 current={t.otCurrent}
               />
             )}
+            {t.counts.insurance > 0 && (
+              <InsuranceCategoryCard
+                {...CATEGORY_META.insurance}
+                count={t.counts.insurance}
+                summary={t.insurance}
+              />
+            )}
           </div>
+          {t.counts.insurance > 0 && (
+            <p className="dash-insurance-footnote">
+              Insurance cover and premiums are not included in portfolio value above.
+            </p>
+          )}
         </section>
 
         <section className="dash-section dash-section--mid">
@@ -386,7 +473,23 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <DashboardFooter lastUpdated={t.lastUpdated} />
+        <section className="dash-section dash-section--history">
+          <PortfolioHistoryChart
+            refreshKey={snapshotRefresh}
+            investedValue={t.grandInvested}
+            liveCurrentValue={t.grandCurrent}
+            todayPnl={t.portfolioToday}
+            holdings={{
+              indianStocks: inStocks,
+              usStocks,
+              mutualFunds: funds,
+              otherAssets: assets,
+              usdInr,
+            }}
+          />
+        </section>
+
+        <DashboardFooter lastUpdated={inUpdated || t.lastUpdated} pricesStale={pricesStale} />
       </div>
     </div>
   )

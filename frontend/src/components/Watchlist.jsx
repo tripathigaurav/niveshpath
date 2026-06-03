@@ -5,7 +5,7 @@ export default function Watchlist() {
         <div className="placeholder-icon" aria-hidden="true">👁️</div>
         <h2>Watchlist</h2>
         <p>Monitor stocks and funds you are considering buying</p>
-        <p className="placeholder-subtitle">Coming in Phase 5</p>
+        <p className="placeholder-subtitle">Coming in Phase 7</p>
       </div>
     </div>
   )

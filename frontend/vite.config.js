@@ -5,10 +5,11 @@ export default defineConfig({
   plugins: [react()],
   base: '/niveshpath/',
   server: {
-    port: 5173,
+    port: Number(process.env.VITE_DEV_PORT) || 5199,
+    strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: process.env.API_PROXY_TARGET || 'http://localhost:5000',
         changeOrigin: true,
       },
     },

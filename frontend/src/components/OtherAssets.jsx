@@ -3,12 +3,13 @@ import { useOtherAssets } from '../hooks/usePortfolio'
 import AddOtherAssetModal, { ASSET_TYPES } from './AddOtherAssetModal'
 import ConfirmDialog from './ConfirmDialog'
 import PnlBadge from './PnlBadge'
-import { formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
+import { formatINR, formatPct, formatChange } from '../utils/formatters'
 import { calcOtherPnl, calcTotals } from '../utils/pnl'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import FilterBar from './FilterBar'
 import SummaryBar from './SummaryBar'
+import OtherAssetDetailModal from './OtherAssetDetailModal'
 import {
   OtherAssetCard,
   HoldingCardsEmpty,
@@ -26,23 +27,20 @@ const getSortVal = (asset, key) => {
   }
 }
 
-function AssetRow({ asset, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
+function AssetRow({ asset, onOpenDetail }) {
   const { pnl, pnlPct } = calcOtherPnl(asset)
   const rowCls = pnl == null ? 'row-neutral' : pnl > 0 ? 'row-gain' : 'row-loss'
 
   return (
-    <>
       <tr
-        className={rowCls}
-        onClick={() => setExpanded((v) => !v)}
+        className={`${rowCls} holdings-row--clickable`}
+        onClick={() => onOpenDetail(asset)}
         tabIndex={0}
         role="button"
-        aria-expanded={expanded}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            setExpanded((v) => !v)
+            onOpenDetail(asset)
           }
         }}
       >
@@ -69,41 +67,6 @@ function AssetRow({ asset, onEdit, onDelete }) {
           <PnlBadge value={pnl} pct={pnlPct} />
         </td>
       </tr>
-      {expanded && (
-        <tr className="expanded-row">
-          <td colSpan={6}>
-            <div className="row-details">
-              <div className="row-details-meta">
-                {asset.addedDate && (
-                  <div className="row-details-meta-item">
-                    Date: <span>{formatDate(asset.addedDate)}</span>
-                  </div>
-                )}
-                {asset.notes && (
-                  <div className="row-details-meta-item">
-                    Notes: <span>{asset.notes}</span>
-                  </div>
-                )}
-              </div>
-              <div className="row-details-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onEdit(asset) }}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onDelete(asset) }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
   )
 }
 
@@ -132,6 +95,7 @@ export default function OtherAssets({ showToast }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editAsset, setEditAsset] = useState(null)
   const [deleteAsset, setDeleteAsset] = useState(null)
+  const [detailAsset, setDetailAsset] = useState(null)
   const [filter, setFilter] = useState('')
 
   const filtered = useMemo(() => {
@@ -143,7 +107,7 @@ export default function OtherAssets({ showToast }) {
   }, [assets, filter])
 
   const { sorted, sortKey, sortDir, setSort } = useSortable(
-    filtered, 'currentValue', 'desc', getSortVal
+    filtered, 'currentValue', 'desc', getSortVal, 'other'
   )
 
   const totals = useMemo(
@@ -187,7 +151,7 @@ export default function OtherAssets({ showToast }) {
   }, [deleteAsset, removeAsset, showToast])
 
   return (
-    <div className="page">
+    <div className="page page--category">
       <div className="section-header">
         <div>
           <div className="section-title">Other Assets</div>
@@ -205,7 +169,7 @@ export default function OtherAssets({ showToast }) {
       {assets.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
-        <div className="table-wrap">
+        <div className="category-holdings-panel">
           <SummaryBar variant="elevated" metrics={[
             {
               label: 'Investments',
@@ -260,8 +224,7 @@ export default function OtherAssets({ showToast }) {
                     <AssetRow
                       key={a.id}
                       asset={a}
-                      onEdit={setEditAsset}
-                      onDelete={setDeleteAsset}
+                      onOpenDetail={setDetailAsset}
                     />
                   ))
                 )}
@@ -279,6 +242,7 @@ export default function OtherAssets({ showToast }) {
                     typeLabel={TYPE_LABEL[a.type] ?? a.type}
                     onEdit={setEditAsset}
                     onDelete={setDeleteAsset}
+                    onOpenDetail={setDetailAsset}
                   />
                 ))}
               </div>
@@ -306,6 +270,15 @@ export default function OtherAssets({ showToast }) {
           onCancel={() => setDeleteAsset(null)}
         />
       )}
+
+      <OtherAssetDetailModal
+        asset={detailAsset}
+        open={!!detailAsset}
+        onClose={() => setDetailAsset(null)}
+        onEdit={setEditAsset}
+        onDelete={setDeleteAsset}
+        showToast={showToast}
+      />
     </div>
   )
 }

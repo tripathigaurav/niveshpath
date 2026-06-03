@@ -6,9 +6,10 @@ import { useState, useMemo } from 'react'
  * @param {string} defaultKey - default sort field
  * @param {string} defaultDir - 'asc' | 'desc'
  * @param {Function} getSortVal - optional (item, key) => comparable value
+ * @param {string} namespace - disambiguates tables (e.g. 'indian', 'mf')
  */
-export function useSortable(items, defaultKey, defaultDir = 'desc', getSortVal) {
-  const storageKey = `pt_sort_${defaultKey}`
+export function useSortable(items, defaultKey, defaultDir = 'desc', getSortVal, namespace = '') {
+  const storageKey = `pt_sort_${namespace}_${defaultKey}`
 
   const [sortKey, setSortKey] = useState(() => {
     try {

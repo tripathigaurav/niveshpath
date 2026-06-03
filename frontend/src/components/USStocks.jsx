@@ -6,11 +6,14 @@ import FilterBar from './FilterBar'
 import LiveBadge from './LiveBadge'
 import SummaryBar from './SummaryBar'
 import USHoldingsSection from './USHoldingsSection'
+import USHoldingDetailModal from './USHoldingDetailModal'
 import { formatUSD, formatINR, formatPct, formatChange } from '../utils/formatters'
 import { calcTotals, pnlColorClass } from '../utils/pnl'
 import { calcRealizedGain } from '../utils/summaryMetrics'
 import { storage } from '../utils/storage'
+import { calcCategoryXirr, formatXirrDisplay, buildHoldingXirrMap } from '../utils/xirrMetrics'
 import { partitionUsHoldings, US_CATEGORY } from '../utils/usHoldings'
+import MarketStatusBar from './MarketStatusBar'
 
 function EmptyState({ onAddStock }) {
   return (
@@ -30,16 +33,9 @@ function EmptyState({ onAddStock }) {
   )
 }
 
-function buildStockSubtitle(partition) {
-  const parts = []
-  if (partition.stockCount > 0) {
-    parts.push(`${partition.stockCount} stock${partition.stockCount !== 1 ? 's' : ''}`)
-  }
-  if (partition.etfCount > 0) {
-    parts.push(`${partition.etfCount} ETF${partition.etfCount !== 1 ? 's' : ''}`)
-  }
-  if (!parts.length) return 'Listed equities and exchange-traded funds'
-  return parts.join(' · ')
+function buildStockSubtitle(count) {
+  if (!count) return 'Listed equities and exchange-traded funds'
+  return `${count} holding${count !== 1 ? 's' : ''}`
 }
 
 export default function USStocks({ showToast }) {
@@ -49,6 +45,7 @@ export default function USStocks({ showToast }) {
   const [addCategory, setAddCategory] = useState(null)
   const [editStock, setEditStock] = useState(null)
   const [deleteStock, setDeleteStock] = useState(null)
+  const [detailStock, setDetailStock] = useState(null)
   const [filter, setFilter] = useState('')
   const [showInr, setShowInr] = useState(false)
 
@@ -58,13 +55,6 @@ export default function USStocks({ showToast }) {
     () => [...partition.stocksOnly, ...partition.etfs],
     [partition.stocksOnly, partition.etfs]
   )
-
-  useEffect(() => {
-    if (stocks.length > 0 && stocks.some((s) => s.currentPrice === null)) {
-      refreshPrices()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const totals = useMemo(() => calcTotals(stocks), [stocks])
   const totalDayChange = useMemo(() => {
@@ -82,6 +72,15 @@ export default function USStocks({ showToast }) {
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'usStock'),
     [stocks]
+  )
+  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const xirrById = useMemo(
+    () => buildHoldingXirrMap(stocks, 'usStock', transactions, { usdInr }),
+    [stocks, transactions, usdInr]
+  )
+  const xirrRate = useMemo(
+    () => calcCategoryXirr('usStock', stocks, transactions, { usdInr }),
+    [stocks, transactions, usdInr]
   )
 
   const [pulsing, setPulsing] = useState(false)
@@ -128,7 +127,7 @@ export default function USStocks({ showToast }) {
   const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
   const pnlClr = totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'text-gain' : 'text-loss') : ''
 
-  const stockSubtitle = buildStockSubtitle(partition)
+  const stockSubtitle = buildStockSubtitle(stockTableHoldings.length)
 
   const filteredCount = useMemo(() => {
     if (!filter) return stocks.length
@@ -139,15 +138,12 @@ export default function USStocks({ showToast }) {
   }, [stocks, filter])
 
   return (
-    <div className="page">
+    <div className="page page--category">
       <div className="section-header">
         <div>
           <div className="section-title">US Stocks</div>
           <div className="section-subtitle">
             {stocks.length} holding{stocks.length !== 1 ? 's' : ''}
-            {partition.etfCount > 0 && (
-              <span className="us-etf-summary-pill">{partition.etfCount} ETF</span>
-            )}
             {usdInr && (
               <span className="fx-rate-badge">1 USD = ₹{usdInr.toFixed(2)}</span>
             )}
@@ -161,7 +157,7 @@ export default function USStocks({ showToast }) {
             onClick={handleRefresh}
             disabled={loading || !stocks.length}
           >
-            {loading ? 'Refreshing...' : '↻ Refresh Prices'}
+            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh Prices'}
           </button>
           {usdInr && stocks.length > 0 && (
             <button
@@ -178,6 +174,8 @@ export default function USStocks({ showToast }) {
           </button>
         </div>
       </div>
+
+      <MarketStatusBar market="us" />
 
       {stocks.length === 0 ? (
         <EmptyState onAddStock={() => setAddCategory('stock')} />
@@ -231,6 +229,13 @@ export default function USStocks({ showToast }) {
                     colorClass: realizedVal != null ? pnlColorClass(realizedVal) : '',
                     accent: realizedVal != null ? (realizedVal > 0 ? 'gain' : realizedVal < 0 ? 'loss' : null) : null,
                   },
+                  {
+                    label: 'XIRR',
+                    value: formatXirrDisplay(xirrRate),
+                    sub: xirrRate == null ? 'Add dates or refresh prices' : 'Annualized',
+                    colorClass: xirrRate != null ? pnlColorClass(xirrRate) : '',
+                    accent: xirrRate != null ? (xirrRate >= 0 ? 'gain' : 'loss') : null,
+                  },
                 ]}
               />
             )
@@ -267,8 +272,10 @@ export default function USStocks({ showToast }) {
               addLabel="+ Add Stock"
               onEdit={setEditStock}
               onDelete={setDeleteStock}
+              onOpenDetail={setDetailStock}
+              xirrById={xirrById}
+              sortNamespace="us-stocks"
             />
-
 
             <USHoldingsSection
               title="ESPP"
@@ -283,6 +290,9 @@ export default function USStocks({ showToast }) {
               addLabel="+ Add ESPP"
               onEdit={setEditStock}
               onDelete={setDeleteStock}
+              onOpenDetail={setDetailStock}
+              xirrById={xirrById}
+              sortNamespace="us-espp"
             />
 
             <USHoldingsSection
@@ -298,6 +308,9 @@ export default function USStocks({ showToast }) {
               addLabel="+ Add RSU"
               onEdit={setEditStock}
               onDelete={setDeleteStock}
+              onOpenDetail={setDetailStock}
+              xirrById={xirrById}
+              sortNamespace="us-rsu"
             />
           </div>
         </div>
@@ -328,6 +341,18 @@ export default function USStocks({ showToast }) {
           onCancel={() => setDeleteStock(null)}
         />
       )}
+
+      <USHoldingDetailModal
+        stock={detailStock}
+        open={!!detailStock}
+        onClose={() => setDetailStock(null)}
+        onEdit={setEditStock}
+        onDelete={setDeleteStock}
+        lastUpdated={lastUpdated}
+        showToast={showToast}
+        usdInr={usdInr}
+        showInr={showInr}
+      />
     </div>
   )
 }

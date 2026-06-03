@@ -1,4 +1,5 @@
 import { formatINR, formatChange, formatPct } from './formatters'
+import { formatXirrDisplay } from './xirrMetrics'
 import { pnlColorClass, sumTodayPnl } from './pnl'
 /** @typedef {'indianStock'|'usStock'|'mutualFund'} AssetType */
 
@@ -85,6 +86,7 @@ export function buildHoldingsSummaryMetrics({
   totalPnl,
   totalPnlPct,
   realizedPnl,
+  xirrRate = undefined,
   pulsing = false,
   currentSubHint = null,
 }) {
@@ -117,6 +119,15 @@ export function buildHoldingsSummaryMetrics({
     pnlMetric('Total Realized Gain/Loss', realizedPnl, {
       sub: realizedPnl != null ? formatINR(realizedPnl) : null,
     }),
+    ...(xirrRate !== undefined
+      ? [{
+          label: 'XIRR',
+          value: formatXirrDisplay(xirrRate),
+          sub: xirrRate == null ? 'Add dates or refresh prices' : 'Annualized',
+          colorClass: xirrRate != null ? pnlColorClass(xirrRate) : '',
+          accent: xirrRate != null ? (xirrRate >= 0 ? 'gain' : 'loss') : null,
+        }]
+      : []),
   ]
 }
 

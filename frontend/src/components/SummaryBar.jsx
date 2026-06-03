@@ -11,6 +11,7 @@
  *   accent?: 'gain'|'loss'
  *   pulse?: boolean
  *   icon?: string
+ *   warning?: boolean
  * }>
  */
 export default function SummaryBar({ metrics, className = '', variant = 'strip' }) {
@@ -19,6 +20,7 @@ export default function SummaryBar({ metrics, className = '', variant = 'strip' 
   return (
     <div
       className={`summary-bar${isElevated ? ' summary-bar--elevated' : ''}${className ? ` ${className}` : ''}`}
+      style={{ '--summary-cols': metrics.length }}
     >
       {metrics.map((m, i) => (
         <div
@@ -35,7 +37,9 @@ export default function SummaryBar({ metrics, className = '', variant = 'strip' 
               {m.value ?? '—'}
             </div>
             {m.sub && (
-              <div className={`summary-bar-sub${m.colorClass ? ` ${m.colorClass}` : ''}`}>
+              <div
+                className={`summary-bar-sub${m.colorClass ? ` ${m.colorClass}` : ''}${m.warning ? ' summary-bar-sub--warning' : ''}`}
+              >
                 {m.sub}
               </div>
             )}

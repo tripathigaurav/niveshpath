@@ -1,7 +1,15 @@
 import { useId, useRef } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
-export default function ConfirmDialog({ title, message, onConfirm, onCancel, confirmLabel = 'Delete' }) {
+export default function ConfirmDialog({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmLabel = 'Delete',
+  confirmClassName = 'btn-danger',
+  icon = '🗑️',
+}) {
   const modalRef = useRef(null)
   const titleId = useId()
 
@@ -17,13 +25,13 @@ export default function ConfirmDialog({ title, message, onConfirm, onCancel, con
     >
       <div className="modal confirm-dialog" ref={modalRef} onClick={(e) => e.stopPropagation()}>
         <div className="confirm-body">
-          <div className="confirm-icon">🗑️</div>
+          <div className="confirm-icon">{icon}</div>
           <h3 id={titleId}>{title || 'Are you sure?'}</h3>
           <p>{message || 'This action cannot be undone.'}</p>
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-          <button className="btn btn-danger" onClick={onConfirm}>{confirmLabel}</button>
+          <button type="button" className={`btn ${confirmClassName}`} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>

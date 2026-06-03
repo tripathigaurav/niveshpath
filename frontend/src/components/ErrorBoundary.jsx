@@ -16,6 +16,9 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
       return (
         <div className="error-boundary-container" role="alert">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none">

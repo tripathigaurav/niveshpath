@@ -1,0 +1,43 @@
+.welcomeModal {
+  max-width: 400px;
+  text-align: center;
+}
+
+.welcomeModal :global(.modal-body) {
+  padding: 28px 32px;
+}
+
+.welcomeIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.welcomeModal h2 {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.welcomeModal p {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-bottom: 24px;
+}
+
+.welcomeSkipBtn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  transition: color 0.15s;
+}
+
+.welcomeSkipBtn:hover {
+  color: var(--text-2);
+}

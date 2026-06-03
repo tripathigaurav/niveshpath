@@ -12,11 +12,20 @@ import {
   sumMfTodayPnl,
 } from '../utils/summaryMetrics'
 import { storage } from '../utils/storage'
+import {
+  calcCategoryXirr,
+  formatXirrDisplay,
+  buildHoldingXirrMap,
+} from '../utils/xirrMetrics'
+import { pnlColorClass } from '../utils/pnl'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import FilterBar from './FilterBar'
 import LiveBadge from './LiveBadge'
 import SummaryBar from './SummaryBar'
+import MutualFundDetailModal from './MutualFundDetailModal'
+import MfNavStatusBar from './MfNavStatusBar'
+import { formatNavDate } from '../utils/mfNavDisplay'
 import {
   MutualFundCard,
   HoldingCardSkeleton,
@@ -31,27 +40,26 @@ const getSortVal = (fund, key) => {
     case 'invested': return fund.units * fund.buyNAV
     case 'buyNAV': return fund.buyNAV
     case 'qty': return fund.units
+    case 'xirr':
+      return calcHoldingXirr(fund, 'mutualFund', storage.getTransactions())
     default: return fund[key]
   }
 }
 
-function FundRow({ fund, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
+function FundRow({ fund, xirr, onOpenDetail }) {
   const { invested, current, pnl, pnlPct } = calcMfPnl(fund)
   const rowCls = pnl == null ? 'row-neutral' : pnl > 0 ? 'row-gain' : 'row-loss'
 
   return (
-    <>
       <tr
-        className={rowCls}
-        onClick={() => setExpanded((v) => !v)}
+        className={`${rowCls} holdings-row--clickable`}
+        onClick={() => onOpenDetail(fund)}
         tabIndex={0}
         role="button"
-        aria-expanded={expanded}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            setExpanded((v) => !v)
+            onOpenDetail(fund)
           }
         }}
       >
@@ -63,9 +71,16 @@ function FundRow({ fund, onEdit, onDelete }) {
         </td>
         <td className="right mono col-day-change">{formatNumber(fund.units, 3)}</td>
         <td className="right mono col-buy-price">{formatINR(fund.buyNAV)}</td>
-        <td className="right mono">
+        <td className="right mono col-nav">
           {fund.currentNAV != null ? (
-            <span className="fw-600">{formatINR(fund.currentNAV)}</span>
+            <>
+              <span className="fw-600">{formatINR(fund.currentNAV)}</span>
+              {fund.navDate && (
+                <div className="mf-nav-cell-date" title="AMFI NAV date">
+                  {formatNavDate(fund.navDate, { shortYear: true })}
+                </div>
+              )}
+            </>
           ) : (
             <span className="text-3">—</span>
           )}
@@ -84,45 +99,12 @@ function FundRow({ fund, onEdit, onDelete }) {
         <td className="right">
           <PnlBadge value={pnl} pct={pnlPct} />
         </td>
+        <td className="right mono">
+          <span className={xirr != null ? pnlColorClass(xirr) : 'text-3'}>
+            {formatXirrDisplay(xirr)}
+          </span>
+        </td>
       </tr>
-      {expanded && (
-        <tr className="expanded-row">
-          <td colSpan={8}>
-            <div className="row-details">
-              <div className="row-details-meta">
-                {fund.buyDate && (
-                  <div className="row-details-meta-item">
-                    Purchase Date: <span>{formatDate(fund.buyDate)}</span>
-                  </div>
-                )}
-                {fund.navDate && (
-                  <div className="row-details-meta-item">
-                    NAV Date: <span>{fund.navDate}</span>
-                  </div>
-                )}
-                <div className="row-details-meta-item">
-                  Invested: <span>{formatINR(invested)}</span>
-                </div>
-              </div>
-              <div className="row-details-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onEdit(fund) }}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onDelete(fund) }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
   )
 }
 
@@ -137,7 +119,7 @@ function EmptyState({ onAdd }) {
         <rect x="20" y="53" width="25" height="4" rx="2" fill="var(--green)" opacity="0.6" />
       </svg>
       <h3>No mutual funds yet</h3>
-      <p>Add your mutual fund holdings. NAV is fetched live from AMFI.</p>
+      <p>Add mutual fund holdings. NAV from AMFI (published on business days).</p>
       <button className="btn btn-primary" onClick={onAdd}>
         + Add Your First Fund
       </button>
@@ -152,14 +134,8 @@ export default function MutualFunds({ showToast }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editFund, setEditFund] = useState(null)
   const [deleteFund, setDeleteFund] = useState(null)
+  const [detailFund, setDetailFund] = useState(null)
   const [filter, setFilter] = useState('')
-
-  useEffect(() => {
-    if (funds.length > 0 && funds.some((f) => f.currentNAV === null)) {
-      refreshNAVs()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const filtered = useMemo(() => {
     if (!filter) return funds
@@ -170,7 +146,7 @@ export default function MutualFunds({ showToast }) {
   }, [funds, filter])
 
   const { sorted, sortKey, sortDir, setSort } = useSortable(
-    filtered, 'currentValue', 'desc', getSortVal
+    filtered, 'currentValue', 'desc', getSortVal, 'mf'
   )
 
   const totals = useMemo(() => calcTotals(funds), [funds])
@@ -178,6 +154,15 @@ export default function MutualFunds({ showToast }) {
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'mutualFund'),
     [funds]
+  )
+  const transactions = useMemo(() => storage.getTransactions(), [funds])
+  const xirrById = useMemo(
+    () => buildHoldingXirrMap(funds, 'mutualFund', transactions),
+    [funds, transactions]
+  )
+  const xirrRate = useMemo(
+    () => calcCategoryXirr('mutualFund', funds, transactions),
+    [funds, transactions]
   )
 
   const [pulsing, setPulsing] = useState(false)
@@ -222,7 +207,7 @@ export default function MutualFunds({ showToast }) {
 
   const allNavNull = funds.length > 0 && funds.every((f) => f.currentNAV === null)
   return (
-    <div className="page">
+    <div className="page page--category">
       <div className="section-header">
         <div>
           <div className="section-title">Mutual Funds</div>
@@ -237,7 +222,7 @@ export default function MutualFunds({ showToast }) {
             onClick={handleRefresh}
             disabled={loading || !funds.length}
           >
-            {loading ? '⏳ Refreshing...' : '↻ Refresh NAVs'}
+            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh NAVs'}
           </button>
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
             + Add Fund
@@ -245,10 +230,12 @@ export default function MutualFunds({ showToast }) {
         </div>
       </div>
 
+      <MfNavStatusBar funds={funds} />
+
       {funds.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
-        <div className="table-wrap">
+        <div className="category-holdings-panel">
           {!loading && (
             <SummaryBar
               variant="elevated"
@@ -259,6 +246,7 @@ export default function MutualFunds({ showToast }) {
                 totalPnl: totals.totalPnl,
                 totalPnlPct: totals.totalPnlPct,
                 realizedPnl,
+                xirrRate,
                 pulsing,
                 currentSubHint: totals.totalCurrent == null ? 'Refresh NAV to see value' : null,
               })}
@@ -290,34 +278,38 @@ export default function MutualFunds({ showToast }) {
                 <col style={{ width: '11%' }} />  {/* Invested */}
                 <col style={{ width: '12%' }} />  {/* Current Value */}
                 <col style={{ width: '11%' }} />  {/* P&L */}
-                <col style={{ width: '10%' }} />  {/* P&L % */}
+                <col style={{ width: '9%' }} />  {/* P&L % */}
+                <col style={{ width: '9%' }} />  {/* XIRR */}
               </colgroup>
               <thead>
                 <tr>
                   <SortTh col="symbol" label="Scheme" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="qty" label="Units" className="right col-day-change" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="buyNAV" label="Buy NAV" className="right col-buy-price" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
-                  <th className="right">Current NAV</th>
+                  <th className="right col-nav" title="Latest AMFI NAV and its publication date">
+                    Current NAV
+                  </th>
                   <SortTh col="invested" label="Invested" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="currentValue" label="Current Value" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <th className="right">P&amp;L</th>
                   <SortTh col="pnlPct" label="P&amp;L %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <SortTh col="xirr" label="XIRR" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <SkeletonRows count={funds.length || 3} cols={8} />
+                  <SkeletonRows count={funds.length || 3} cols={9} />
                 ) : sorted.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="filter-no-results">No holdings match "{filter}"</td>
+                    <td colSpan={9} className="filter-no-results">No holdings match "{filter}"</td>
                   </tr>
                 ) : (
                   sorted.map((f) => (
                     <FundRow
                       key={f.id}
                       fund={f}
-                      onEdit={setEditFund}
-                      onDelete={setDeleteFund}
+                      xirr={xirrById.get(f.id)}
+                      onOpenDetail={setDetailFund}
                     />
                   ))
                 )}
@@ -336,6 +328,7 @@ export default function MutualFunds({ showToast }) {
                     fund={f}
                     onEdit={setEditFund}
                     onDelete={setDeleteFund}
+                    onOpenDetail={setDetailFund}
                   />
                 ))}
               </div>
@@ -361,6 +354,16 @@ export default function MutualFunds({ showToast }) {
           onCancel={() => setDeleteFund(null)}
         />
       )}
+
+      <MutualFundDetailModal
+        fund={detailFund}
+        open={!!detailFund}
+        onClose={() => setDetailFund(null)}
+        onEdit={setEditFund}
+        onDelete={setDeleteFund}
+        lastUpdated={lastUpdated}
+        showToast={showToast}
+      />
     </div>
   )
 }

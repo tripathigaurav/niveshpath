@@ -4,22 +4,18 @@ import AddInsuranceModal from './AddInsuranceModal'
 import ConfirmDialog from './ConfirmDialog'
 import SummaryBar from './SummaryBar'
 import FilterBar from './FilterBar'
+import InsuranceDetailModal from './InsuranceDetailModal'
 import { formatINR, formatDate } from '../utils/formatters'
+import { daysUntilRenewal, summarizeInsurance } from '../utils/insuranceMetrics'
 
 const TYPE_META = {
   health: { label: 'Health Insurance', icon: '🏥', color: 'var(--blue)' },
   term:   { label: 'Term Insurance',   icon: '🛡️', color: 'var(--green)' },
 }
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null
-  const diff = new Date(dateStr) - new Date()
-  return Math.ceil(diff / (1000 * 60 * 60 * 24))
-}
-
 function RenewalChip({ dateStr }) {
   if (!dateStr) return null
-  const days = daysUntil(dateStr)
+  const days = daysUntilRenewal(dateStr)
   let cls = 'ins-renewal-chip'
   if (days <= 30) cls += ' ins-renewal-chip--urgent'
   else if (days <= 90) cls += ' ins-renewal-chip--soon'
@@ -36,18 +32,16 @@ function RenewalChip({ dateStr }) {
   )
 }
 
-function PolicyCard({ policy, onEdit, onDelete }) {
-  const [expanded, setExpanded] = useState(false)
+function PolicyCard({ policy, onEdit, onDelete, onOpenDetail }) {
   const meta = TYPE_META[policy.type] ?? { label: policy.type, icon: '📄', color: 'var(--text-3)' }
 
   return (
     <div
       className={`ins-card ins-card--${policy.type}`}
-      onClick={() => setExpanded((v) => !v)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+      onClick={() => onOpenDetail(policy)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(policy) } }}
       role="button"
       tabIndex={0}
-      aria-expanded={expanded}
     >
       <div className="ins-card-header">
         <div className="ins-card-left">
@@ -67,55 +61,11 @@ function PolicyCard({ policy, onEdit, onDelete }) {
           <div className="ins-card-premium">{formatINR(policy.premium)} <span className="text-3">/yr</span></div>
         </div>
       </div>
-
-      {expanded && (
-        <div className="ins-card-details" onClick={(e) => e.stopPropagation()}>
-          <div className="row-details-meta">
-            {policy.coverAmount != null && (
-              <div className="row-details-meta-item">
-                Cover Amount: <span>{formatINR(policy.coverAmount)}</span>
-              </div>
-            )}
-            <div className="row-details-meta-item">
-              Annual Premium: <span>{formatINR(policy.premium)}</span>
-            </div>
-            {policy.startDate && (
-              <div className="row-details-meta-item">
-                Start Date: <span>{formatDate(policy.startDate)}</span>
-              </div>
-            )}
-            {policy.renewalDate && (
-              <div className="row-details-meta-item">
-                Renewal Date: <span>{formatDate(policy.renewalDate)}</span>
-              </div>
-            )}
-            {policy.notes && (
-              <div className="row-details-meta-item">
-                Notes: <span>{policy.notes}</span>
-              </div>
-            )}
-          </div>
-          <div className="row-details-actions">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={(e) => { e.stopPropagation(); onEdit(policy) }}
-            >
-              ✏️ Edit
-            </button>
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={(e) => { e.stopPropagation(); onDelete(policy) }}
-            >
-              🗑 Delete
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-function PolicySection({ title, icon, policies, onEdit, onDelete, onAdd, addLabel, emptyMessage }) {
+function PolicySection({ title, icon, policies, onEdit, onDelete, onOpenDetail, onAdd, addLabel, emptyMessage }) {
   return (
     <section className="ins-section">
       <div className="ins-section-head">
@@ -133,7 +83,7 @@ function PolicySection({ title, icon, policies, onEdit, onDelete, onAdd, addLabe
       ) : (
         <div className="ins-cards-grid">
           {policies.map((p) => (
-            <PolicyCard key={p.id} policy={p} onEdit={onEdit} onDelete={onDelete} />
+            <PolicyCard key={p.id} policy={p} onEdit={onEdit} onDelete={onDelete} onOpenDetail={onOpenDetail} />
           ))}
         </div>
       )}
@@ -164,6 +114,7 @@ export default function Insurance({ showToast }) {
   const [addInitial, setAddInitial] = useState(null)
   const [editPolicy, setEditPolicy] = useState(null)
   const [deletePolicy, setDeletePolicy] = useState(null)
+  const [detailPolicy, setDetailPolicy] = useState(null)
   const [filter, setFilter] = useState('')
 
   const filtered = useMemo(() => {
@@ -177,12 +128,7 @@ export default function Insurance({ showToast }) {
   const health = useMemo(() => filtered.filter((p) => p.type === 'health'), [filtered])
   const term   = useMemo(() => filtered.filter((p) => p.type === 'term'),   [filtered])
 
-  const summary = useMemo(() => {
-    const totalPremium  = policies.reduce((s, p) => s + (p.premium ?? 0), 0)
-    const healthCover   = policies.filter((p) => p.type === 'health').reduce((s, p) => s + (p.coverAmount ?? 0), 0)
-    const termCover     = policies.filter((p) => p.type === 'term').reduce((s, p) => s + (p.coverAmount ?? 0), 0)
-    return { totalPremium, healthCover, termCover }
-  }, [policies])
+  const summary = useMemo(() => summarizeInsurance(policies), [policies])
 
   const handleAdd = useCallback((data) => {
     addPolicy(data)
@@ -209,7 +155,7 @@ export default function Insurance({ showToast }) {
   }
 
   return (
-    <div className="page">
+    <div className="page page--category">
       <div className="section-header">
         <div>
           <div className="section-title">Insurance</div>
@@ -227,8 +173,7 @@ export default function Insurance({ showToast }) {
       {policies.length === 0 ? (
         <EmptyState onAdd={() => openAdd()} />
       ) : (
-        <div className="ins-page-body">
-          {/* Summary bar */}
+        <div className="ins-holdings-panel">
           <SummaryBar
             variant="elevated"
             metrics={[
@@ -250,7 +195,7 @@ export default function Insurance({ showToast }) {
               {
                 label: 'Policies',
                 value: String(policies.length),
-                sub: `${policies.filter(p => p.type === 'health').length} health · ${policies.filter(p => p.type === 'term').length} term`,
+                sub: `${summary.healthCount} health · ${summary.termCount} term`,
               },
             ]}
           />
@@ -272,6 +217,7 @@ export default function Insurance({ showToast }) {
               policies={health}
               onEdit={setEditPolicy}
               onDelete={setDeletePolicy}
+              onOpenDetail={setDetailPolicy}
               onAdd={() => openAdd('health')}
               addLabel="+ Add Health"
               emptyMessage="No health insurance policies yet."
@@ -282,6 +228,7 @@ export default function Insurance({ showToast }) {
               policies={term}
               onEdit={setEditPolicy}
               onDelete={setDeletePolicy}
+              onOpenDetail={setDetailPolicy}
               onAdd={() => openAdd('term')}
               addLabel="+ Add Term"
               emptyMessage="No term insurance policies yet."
@@ -312,6 +259,14 @@ export default function Insurance({ showToast }) {
           onCancel={() => setDeletePolicy(null)}
         />
       )}
+
+      <InsuranceDetailModal
+        policy={detailPolicy}
+        open={!!detailPolicy}
+        onClose={() => setDetailPolicy(null)}
+        onEdit={setEditPolicy}
+        onDelete={setDeletePolicy}
+      />
     </div>
   )
 }
