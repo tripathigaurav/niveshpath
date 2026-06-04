@@ -12,7 +12,7 @@ const EVENTS_ERROR_COPY = {
   outdated:
     'Backend is missing the events API — restart Flask (./deploy-local.sh). Per-symbol fallback may still work.',
   staticHost:
-    'Live events need the Flask API. Set VITE_API_BASE in frontend/.env to your hosted backend, or run locally.',
+    'Live events (dividends, earnings) need the backend API — not available in the hosted demo. Run locally with ./deploy-local.sh for live data.',
   generic: 'Could not load events. Try again in a moment.',
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../utils/api'
 import styles from './MarketStrip.module.css'
 
+const IS_STATIC_HOST = import.meta.env.PROD && !import.meta.env['VITE_API_BASE']
 const ORDERED_KEYS = [
   'nifty50', 'sensex', 'niftyBank', 'usdInr', 'sp500', 'nasdaq', 'gold', 'crude',
 ]
@@ -44,6 +45,9 @@ export default function MarketStrip() {
   const [error, setError] = useState(false)
 
   useEffect(() => {
+    // On GitHub Pages / static host the Flask backend is not available.
+    if (IS_STATIC_HOST) return undefined
+
     let cancelled = false
 
     const load = async () => {
@@ -66,6 +70,7 @@ export default function MarketStrip() {
     }
   }, [])
 
+  if (IS_STATIC_HOST) return null
   if (error && !data) {
     return (
       <div className={`${styles.marketStripDark} ${styles.marketStripError}`}>

@@ -9,6 +9,7 @@ import {
   calcIndianStockMetrics,
   calcUsPnl,
   calcMfPnl,
+  calcOtherPnl,
   sumTodayPnl,
   sumPortfolioTodayPnl,
   pnlColorClass,
@@ -93,14 +94,28 @@ function useDashboardPortfolio() {
     let otCurrent = 0
     let otCurrentKnown = false
     for (const a of assets) {
+      const { pnl } = calcOtherPnl(a)
+      if (pnl === null) continue          // no current value — skip both sides
+      const cv = typeof a.currentValue === 'number' && a.currentValue > 0
+        ? a.currentValue
+        : a.investedAmount + pnl
       otInvested += a.investedAmount || 0
-      if (a.currentValue != null) {
-        otCurrent += a.currentValue
-        otCurrentKnown = true
-      }
+      otCurrent  += cv
+      otCurrentKnown = true
     }
 
+    // grandInvested = total across all categories (shown on the Investments card)
     const grandInvested = inInvested + (usInvestedINR ?? 0) + mfInvested + otInvested
+
+    // pricedInvested = only categories where current prices are known.
+    // Notional Gain/Loss uses this so it's apples-to-apples and avoids a
+    // phantom loss when the backend is offline (no live stock/MF prices).
+    const pricedInvested =
+      (inCurrentKnown       ? inInvested          : 0) +
+      (usCurrentINR != null ? (usInvestedINR ?? 0) : 0) +
+      (mfCurrentKnown       ? mfInvested          : 0) +
+      (otCurrentKnown       ? otInvested          : 0)
+
     const grandCurrentParts = [
       inCurrentKnown ? inCurrent : null,
       usCurrentINR,
@@ -109,8 +124,8 @@ function useDashboardPortfolio() {
     ].filter((v) => v != null)
     const grandCurrent =
       grandCurrentParts.length > 0 ? grandCurrentParts.reduce((a, b) => a + b, 0) : null
-    const grandPnl = grandCurrent != null ? grandCurrent - grandInvested : null
-    const grandPnlPct = grandPnl != null && grandInvested ? (grandPnl / grandInvested) * 100 : null
+    const grandPnl    = grandCurrent != null ? grandCurrent - pricedInvested : null
+    const grandPnlPct = grandPnl != null && pricedInvested ? (grandPnl / pricedInvested) * 100 : null
 
     const lastUpdated = [inUpdated, usUpdated, mfUpdated]
       .filter(Boolean)

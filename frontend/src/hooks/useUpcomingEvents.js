@@ -31,12 +31,14 @@ function collectHoldings() {
 
 export function useUpcomingEvents(days = 30) {
   const [events, setEvents] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(isStaticWithoutApi)
   /** @type {[EventsErrorKind|null, Function]} */
-  const [errorKind, setErrorKind] = useState(null)
+  const [errorKind, setErrorKind] = useState(isStaticWithoutApi ? 'staticHost' : null)
 
   useEffect(() => {
+    // On static host (GitHub Pages) the backend isn't available — bail immediately.
+    if (isStaticWithoutApi) return undefined
     let cancelled = false
     const holdings = collectHoldings()
     if (!holdings.length) {
