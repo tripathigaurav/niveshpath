@@ -4,7 +4,7 @@ import AddOtherAssetModal, { ASSET_TYPES } from './AddOtherAssetModal'
 import ConfirmDialog from './ConfirmDialog'
 import PnlBadge from './PnlBadge'
 import { formatINR, formatPct, formatChange } from '../utils/formatters'
-import { calcOtherPnl, calcTotals } from '../utils/pnl'
+import { calcOtherPnl } from '../utils/pnl'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import FilterBar from './FilterBar'
@@ -21,6 +21,7 @@ const getSortVal = (asset, key) => {
   switch (key) {
     case 'symbol': return asset.name
     case 'pnlPct': return calcOtherPnl(asset).pnlPct
+    case 'pnl':    return calcOtherPnl(asset).pnl
     case 'currentValue': return asset.currentValue
     case 'invested': return asset.investedAmount
     default: return asset[key]
@@ -45,7 +46,7 @@ function AssetRow({ asset, onOpenDetail }) {
         }}
       >
         <td><div className="fw-600 fs-13">{asset.name}</div></td>
-        <td className="col-day-change">
+        <td>
           <span className="asset-type-badge">{TYPE_LABEL[asset.type] ?? asset.type}</span>
         </td>
         <td className="right mono col-buy-price">{formatINR(asset.investedAmount)}</td>
@@ -63,7 +64,7 @@ function AssetRow({ asset, onOpenDetail }) {
             <span className="text-3">—</span>
           )}
         </td>
-        <td className="right">
+        <td className="right" style={{paddingRight: '20px'}}>
           <PnlBadge value={pnl} pct={pnlPct} />
         </td>
       </tr>
@@ -110,10 +111,24 @@ export default function OtherAssets({ showToast }) {
     filtered, 'currentValue', 'desc', getSortVal, 'other'
   )
 
-  const totals = useMemo(
-    () => calcTotals(assets, { investedKey: 'investedAmount', currentKey: 'currentValue' }),
-    [assets]
-  )
+  const totals = useMemo(() => {
+    // Only include assets where a current value can actually be determined.
+    // Excluding unknown-value assets from BOTH sides prevents a phantom negative
+    // (e.g. ₹45L Real Estate with no currentValue dragging the summary down).
+    let totalInvested = 0, totalCurrent = 0, hasAny = false
+    assets.forEach((a) => {
+      const { pnl } = calcOtherPnl(a)
+      if (pnl === null) return          // no current value — skip both sides
+      const cv = a.currentValue ?? (a.investedAmount + pnl)
+      totalInvested += a.investedAmount
+      totalCurrent  += cv
+      hasAny = true
+    })
+    const totalPnl    = hasAny ? totalCurrent - totalInvested : null
+    const totalPnlPct = totalPnl != null && totalInvested
+      ? (totalPnl / totalInvested) * 100 : null
+    return { totalInvested, totalCurrent: hasAny ? totalCurrent : null, totalPnl, totalPnlPct }
+  }, [assets])
 
   const [pulsing, setPulsing] = useState(false)
   const prevPnl = useRef(totals.totalPnl)
@@ -207,10 +222,10 @@ export default function OtherAssets({ showToast }) {
               <thead>
                 <tr>
                   <SortTh col="symbol" label="Asset" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
-                  <th className="col-day-change">Type</th>
-                  <SortTh col="invested" label="Invested" className="right col-buy-price" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
+                  <th>Type</th>
+                  <SortTh col="invested" label="Invested" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="currentValue" label="Current Value" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
-                  <th className="right">Gain / Loss</th>
+                  <SortTh col="pnl" label="Gain / Loss" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="pnlPct" label="Return %" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                 </tr>
               </thead>

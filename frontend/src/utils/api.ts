@@ -51,6 +51,9 @@ export const api = {
   getStockActions: (symbol: string): Promise<unknown> =>
     fetchJSON<unknown>(`${BASE}/stock/actions?symbol=${encodeURIComponent(symbol)}`),
 
+  getStockHistoryPrice: (symbol: string, date: string): Promise<{ symbol: string; requestedDate: string; actualDate: string; price: number }> =>
+    fetchJSON(`${BASE}/stock/history-price?symbol=${encodeURIComponent(symbol)}&date=${encodeURIComponent(date)}`),
+
   getUpcomingEvents: (holdings: unknown, days = 30): Promise<unknown> =>
     fetchJSON<unknown>(`${BASE}/portfolio/upcoming-events`, {
       method: 'POST',

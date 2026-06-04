@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
+import { logAudit } from '../utils/auditTrail'
 
 export function useInsurance() {
   const [policies, setPolicies] = useState(() => storage.getInsurance())
@@ -19,20 +20,24 @@ export function useInsurance() {
     setPolicies((prev) => {
       const updated = [...prev, entry]
       storage.setInsurance(updated)
+      logAudit('create', 'insurance', entry.id, null, entry)
       return updated
     })
   }, [])
 
   const removePolicy = useCallback((id) => {
     setPolicies((prev) => {
+      const before = prev.find((p) => p.id === id)
       const updated = prev.filter((p) => p.id !== id)
       storage.setInsurance(updated)
+      logAudit('delete', 'insurance', id, before, null)
       return updated
     })
   }, [])
 
   const updatePolicy = useCallback((id, data) => {
     setPolicies((prev) => {
+      const before = prev.find((p) => p.id === id)
       const updated = prev.map((p) =>
         p.id === id
           ? {
@@ -48,6 +53,7 @@ export function useInsurance() {
           : p
       )
       storage.setInsurance(updated)
+      logAudit('update', 'insurance', id, before, updated.find((p) => p.id === id))
       return updated
     })
   }, [])

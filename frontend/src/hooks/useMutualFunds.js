@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
 import { api } from '../utils/api'
 import { logBuy, logSell } from '../utils/transactions'
+import { logAudit } from '../utils/auditTrail'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useMutualFunds() {
@@ -67,6 +68,7 @@ export function useMutualFunds() {
 
   const updateFund = useCallback((id, data) => {
     setFunds((prev) => {
+      const before = prev.find((f) => f.id === id)
       const updated = prev.map((f) =>
         f.id === id
           ? {
@@ -80,6 +82,7 @@ export function useMutualFunds() {
           : f
       )
       storage.setMutualFunds(updated)
+      logAudit('update', 'mutualFund', id, before, updated.find((f) => f.id === id))
       return updated
     })
   }, [])

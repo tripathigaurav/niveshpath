@@ -137,6 +137,10 @@
   border-collapse: collapse;
   font-size: 13px;
 }
+.modal .pv-bd-table thead {
+  position: static;
+  top: auto;
+}
 .pv-bd-table th {
   font-size: 11px;
   font-weight: 600;

@@ -4,6 +4,7 @@ import { storage } from '../utils/storage'
 import { US_CATEGORY, isUsEtf, normalizeUsHolding } from '../utils/usHoldings'
 import { api } from '../utils/api'
 import { logBuy, logSell } from '../utils/transactions'
+import { logAudit } from '../utils/auditTrail'
 import { fetchBatchPricesWithFallback } from '../utils/priceProvider'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
@@ -85,6 +86,7 @@ export function useUSStocks() {
 
   const updateStock = useCallback((id, data) => {
     setStocks((prev) => {
+      const before = prev.find((s) => s.id === id)
       const updated = prev.map((s) => {
         if (s.id !== id) return s
         const category = data.category || s.category || US_CATEGORY.STOCK
@@ -106,6 +108,7 @@ export function useUSStocks() {
         })
       })
       storage.setUSStocks(updated)
+      logAudit('update', 'usStock', id, before, updated.find((s) => s.id === id))
       return updated
     })
   }, [])

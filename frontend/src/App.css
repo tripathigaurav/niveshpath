@@ -874,11 +874,12 @@ table {
   border-collapse: collapse;
   font-size: 13px;
 }
+/* Default thead: not sticky (sticky breaks modals, panels, and utility tables) */
 thead {
   background: var(--surface-2);
-  position: sticky;
-  top: calc(var(--navbar-height) + var(--strip-height));
-  z-index: 10;
+  position: static;
+  top: auto;
+  z-index: auto;
 }
 thead th {
   padding: 10px 8px;
@@ -893,8 +894,8 @@ thead th {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-thead th.right { text-align: right; }
-/* Symmetric edge padding — first col left, last col right */
+thead th.right,
+thead th.num { text-align: right; }
 thead th:first-child { padding-left: 20px; }
 thead th:last-child  { padding-right: 20px; }
 
@@ -909,26 +910,75 @@ th[aria-sort="descending"] {
 
 tbody tr {
   border-bottom: 1px solid var(--border);
-  transition: background 0.15s ease;
-  cursor: pointer;
-  animation: content-fade-in 0.25s ease-out;
 }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: var(--surface-2); }
-[data-theme="dark"] .holdings-table tbody tr:hover { background: var(--surface-3); }
 
 tbody td {
   padding: 12px 8px;
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
+}
+tbody td:first-child { padding-left: 20px; }
+tbody td:last-child  { padding-right: 20px; }
+tbody td.right,
+tbody td.num { text-align: right; }
+
+/* Main holdings tables — row click, nowrap cells, fade-in */
+.holdings-table tbody tr {
+  transition: background 0.15s ease;
+  cursor: pointer;
+  animation: content-fade-in 0.25s ease-out;
+}
+.holdings-table tbody tr:hover { background: var(--surface-2); }
+[data-theme="dark"] .holdings-table tbody tr:hover { background: var(--surface-3); }
+.holdings-table tbody td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Symmetric edge padding — mirrors the 20px on the left */
-tbody td:first-child { padding-left: 20px; }
-tbody td:last-child  { padding-right: 20px; }
-tbody td.right { text-align: right; }
+
+/* Utility / modal tables (tax, tx history, CSV, share, reconciliation, insights) */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 13px;
+}
+.data-table thead th {
+  padding: 10px 12px;
+  vertical-align: middle;
+  background: var(--surface-2);
+}
+.data-table tbody tr {
+  cursor: default;
+}
+.data-table tbody tr:hover {
+  background: var(--surface-2);
+}
+.data-table tbody td {
+  padding: 10px 12px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.4;
+}
+.data-table tbody td.num,
+.data-table td.num {
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+.data-table thead th.num {
+  text-align: right;
+}
+.data-table thead th:first-child,
+.data-table tbody td:first-child {
+  padding-left: 16px;
+}
+.data-table thead th:last-child,
+.data-table tbody td:last-child {
+  padding-right: 16px;
+}
 
 /* Row color indicators removed — will revisit with a better design */
 .row-gain {}
@@ -1193,6 +1243,36 @@ tbody td.right { text-align: right; }
   max-width: 460px;
   animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.modal--wide {
+  max-width: min(920px, calc(100vw - 48px));
+}
+/* Medium-width modal — for multi-field forms */
+.modal--md {
+  max-width: min(620px, calc(100vw - 32px));
+}
+.modal--tall {
+  max-height: min(90vh, 880px);
+  display: flex;
+  flex-direction: column;
+}
+/* The <form> inside a tall modal must also stretch so footer stays inside */
+.modal--tall > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.modal--tall .modal-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.modal--tall .modal-footer {
+  flex-shrink: 0;
+}
+/* Tighter vertical rhythm inside scrollable form modals */
+.modal--tall .modal-body .form-group { margin-bottom: 13px; }
+.modal--tall .modal-body .form-row   { gap: 10px; }
 @keyframes slide-up {
   from {
     transform: translateY(24px) scale(0.96);
@@ -1241,6 +1321,29 @@ tbody td.right { text-align: right; }
 
 .modal-body { padding: 20px 24px; }
 
+/* Modals & dialogs: never use page-level sticky headers; allow horizontal scroll */
+.modal .table-wrap,
+.modal .ledger-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.modal table thead,
+.modal .pv-bd-table thead {
+  position: static;
+  top: auto;
+  z-index: auto;
+}
+.modal .ledger-table-wrap {
+  max-height: min(50vh, 420px);
+  overflow: auto;
+}
+.modal .ledger-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+}
+
 .modal-footer {
   display: flex;
   align-items: center;
@@ -1252,6 +1355,12 @@ tbody td.right { text-align: right; }
 /* ── Form ────────────────────────────────────────────────────────────────── */
 .form-group { margin-bottom: 18px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* Wrapping grid for dynamic extra fields — 2 cols at ≥460px */
+.form-row--wrap {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+/* A field that should span both columns */
+.form-row--wrap .col-full { grid-column: 1 / -1; }
 .form-label {
   display: block;
   font-size: 12.5px;
@@ -1305,6 +1414,24 @@ tbody td.right { text-align: right; }
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
 }
 .form-input::placeholder { color: var(--text-3); }
+
+/* Select — same size/look as form-input */
+.form-select {
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+}
+.form-select:hover:not(:focus) { border-color: var(--text-3); background: var(--surface-2); }
+.form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+[data-theme='dark'] .form-select:focus { box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
 
 /* Search autocomplete */
 .search-wrap { position: relative; }
@@ -1877,7 +2004,7 @@ tbody td.right { text-align: right; }
 .dash-perf-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .dash-perf-icon { font-size: 18px; flex-shrink: 0; }
 .dash-perf-name {
@@ -1888,7 +2015,9 @@ tbody td.right { text-align: right; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
+.mini-sparkline { flex-shrink: 0; opacity: 0.85; }
 .dash-perf-pct {
   font-size: 13px;
   font-weight: 700;
@@ -1896,6 +2025,15 @@ tbody td.right { text-align: right; }
   padding: 3px 10px;
   border-radius: 20px;
   background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+.dash-perf-abs {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.75;
 }
 
 /* Category grid */
@@ -2022,9 +2160,9 @@ tbody td.right { text-align: right; }
 /* Dashboard footer */
 .dash-footer {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   font-size: 12.5px;
   color: var(--text-3);
   padding-top: 16px;
@@ -2085,6 +2223,75 @@ tbody td.right { text-align: right; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+
+/* Tax harvesting */
+.insights-harvest-note {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin: 0 0 10px;
+}
+.insights-harvest-realized {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+.harvest-pill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.harvest-pill--stcg { background: #fef3c7; color: #92400e; }
+.harvest-pill--ltcg { background: #ede9fe; color: #5b21b6; }
+[data-theme="dark"] .harvest-pill--stcg { background: #78350f40; color: #fcd34d; }
+[data-theme="dark"] .harvest-pill--ltcg { background: #4c1d9540; color: #c4b5fd; }
+.insights-harvest-table {
+  table-layout: fixed;
+  min-width: 720px;
+}
+.insights-harvest-table col.col-harvest-holding { width: 22%; }
+.insights-harvest-table col.col-harvest-notes { width: 28%; }
+.insights-harvest-table .harvest-holding-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.insights-harvest-table .harvest-icon { flex-shrink: 0; }
+.insights-harvest-table .harvest-symbol {
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.insights-harvest-table .harvest-name {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-top: 4px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.insights-harvest-table .harvest-notes {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+.harvest-type { font-size: 11px; color: var(--text-2); }
+.harvest-term {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.harvest-term.short { background: #fee2e2; color: #991b1b; }
+.harvest-term.long { background: #dbeafe; color: #1e40af; }
+[data-theme="dark"] .harvest-term.short { background: #7f1d1d40; color: #fca5a5; }
+[data-theme="dark"] .harvest-term.long { background: #1e3a5f40; color: #93c5fd; }
+.harvest-notes { font-size: 11px; color: var(--text-2); }
 .insights-cat-stack {
   display: flex;
   flex-direction: column;
@@ -4392,8 +4599,83 @@ thead th { min-height: 44px; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+/* ── Transaction History Modal ───────────────────────────────── */
+.tx-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.tx-filters .form-input,
+.tx-filters .form-select {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.tx-filters .tx-search { flex: 1 1 160px; min-width: 130px; }
+.tx-filters input[type='date'] { width: 140px; }
+
+.tx-count {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin: 0 0 10px;
+}
+.tx-empty {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+.tx-table { min-width: 900px; }
+.tx-name { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-notes { max-width: 140px; font-size: 12px; color: var(--text-2); }
+
+/* Transaction type badges */
+.tx-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.tx-type-buy    { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.tx-type-sell   { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+.tx-type-div    { background: var(--blue-bg);   color: var(--blue);   border: 1px solid #bfdbfe; }
+.tx-type-other  { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+[data-theme='dark'] .tx-type-div { border-color: #1e3a8a; }
+
+/* Asset type badges (IN / US / MF) */
+.asset-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--surface-3, var(--bg));
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+/* Pagination */
+.tx-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.tx-pagination .btn { min-width: 72px; }
+
 .tax-empty { font-size: 13px; color: var(--text-2); }
-.tax-table { font-size: 12px; }
+.insights-harvest-wrap { overflow-x: auto; }
 
 .csv-import-note {
   font-size: 12px;
@@ -4417,6 +4699,47 @@ thead th { min-height: 44px; }
 .csv-more { font-size: 12px; color: var(--text-3); }
 .csv-done ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
 
+/* CSV import mode tabs */
+.csv-mode-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 16px;
+}
+.csv-mode-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 7px 14px;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-2);
+  transition: color 0.15s;
+}
+.csv-mode-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.csv-mode-tab:hover:not(.active) { color: var(--text); }
+
+/* CAMS paste area */
+.cams-paste-area {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 12px;
+  font-family: monospace;
+  padding: 10px;
+  resize: vertical;
+  margin-top: 8px;
+}
+.cams-paste-area:focus { outline: none; border-color: var(--accent); }
+
 .profile-tools-row {
   display: flex;
   flex-wrap: wrap;
@@ -4426,4 +4749,359 @@ thead th { min-height: 44px; }
 .dash-footer-live--stale { color: #a16207; }
 .dash-footer-live--stale .dash-footer-dot {
   background: #eab308;
+}
+
+/* ── SIP Tracker ─────────────────────────────────────────────── */
+.sip-add-btn { margin-bottom: 16px; }
+.sip-empty { text-align: center; color: var(--text-2); font-size: 13.5px; padding: 32px 0; }
+.sip-list { display: flex; flex-direction: column; gap: 12px; }
+.sip-form { padding: 16px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.sip-form-title { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+.sip-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 540px) { .sip-form-grid { grid-template-columns: 1fr; } }
+.sip-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.sip-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.sip-card--overdue { border-left: 3px solid var(--loss, #dc2626); }
+.sip-card--upcoming { border-left: 3px solid #f59e0b; }
+.sip-card--scheduled { border-left: 3px solid var(--border); }
+.sip-card--inactive { opacity: 0.65; }
+.sip-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sip-card-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sip-fund-name { font-weight: 600; font-size: 14.5px; }
+.sip-card-actions { display: flex; gap: 6px; align-items: center; }
+.sip-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.sip-card-notes { font-size: 12px; color: var(--text-3); font-style: italic; }
+.sip-status--overdue { background: #fee2e2 !important; color: #991b1b !important; }
+.sip-status--upcoming { background: #fef3c7 !important; color: #92400e !important; }
+.sip-status--scheduled { background: var(--surface-2) !important; }
+.sip-status--inactive { background: var(--surface-2) !important; color: var(--text-3) !important; }
+[data-theme="dark"] .sip-status--overdue { background: #7f1d1d40 !important; color: #fca5a5 !important; }
+[data-theme="dark"] .sip-status--upcoming { background: #78350f40 !important; color: #fcd34d !important; }
+
+.sip-xirr-row {
+  width: 100%;
+  font-size: 12px;
+  color: var(--text-2);
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.sip-xirr-hint { color: var(--text-3); font-size: 11px; }
+
+/* ── Dashboard footer SEBI disclaimer ───────────────────────── */
+.dash-footer-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.dash-footer-sebi {
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 680px;
+}
+
+/* ── Dashboard current-FY tax summary ───────────────────────── */
+.dash-section--tax { margin-top: 4px; }
+.dash-tax-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 700px) { .dash-tax-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 420px) { .dash-tax-grid { grid-template-columns: 1fr; } }
+.dash-tax-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dash-tax-card--accent { border-color: var(--accent); }
+.dash-tax-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+.dash-tax-val { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.dash-tax-sub { font-size: 10.5px; color: var(--text-3); }
+
+/* ── FMV header row (auto-fetch button) ─────────────────────── */
+.tax-fmv-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tax-fmv-header-row .tax-fmv-note { margin: 0; }
+
+/* ── PageActions — per-page contextual tool strip ────────────── */
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* ── Holdings reconciliation ─────────────────────────────────── */
+.recon-intro { font-size: 13px; color: var(--text-2); margin: 0 0 16px; line-height: 1.5; }
+.recon-ok {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.recon-ok-icon { font-size: 24px; }
+.recon-count { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 10px; }
+.recon-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.recon-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+.recon-table col.recon-col-holding { width: 24%; }
+.recon-table col.recon-col-qty { width: 11%; }
+.recon-table col.recon-col-cause { width: 42%; }
+.recon-table tbody td {
+  vertical-align: top;
+  line-height: 1.45;
+}
+.recon-table tbody td.num {
+  vertical-align: middle;
+}
+.recon-holding-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.recon-table .recon-icon { flex-shrink: 0; }
+.recon-table .recon-symbol {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recon-table .recon-name {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-top: 4px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.recon-no-tx { color: var(--text-3); font-style: italic; font-size: 12px; }
+.recon-cause {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.recon-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+/* ── Generic utilities needed across pages ───────────────────── */
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+/* Inline badges — exchange, asset type, status */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.badge-muted  { background: var(--bg); color: var(--text-3); border-color: var(--border); }
+.badge-success { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.badge-warn   { background: #fefce8; color: #92400e; border-color: #fde68a; }
+[data-theme='dark'] .badge-warn { background: #2d1f00; color: #fbbf24; border-color: #78350f; }
+
+/* ── Watchlist page ──────────────────────────────────────────── */
+.watchlist-page { max-width: 900px; }
+
+/* Empty state */
+.watchlist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 24px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 14px;
+  gap: 6px;
+}
+
+/* Add / edit form card */
+.watchlist-form {
+  margin-bottom: 20px;
+}
+.watchlist-form-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+.watchlist-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+.watchlist-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Watchlist item cards */
+.watchlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.watchlist-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "main  prices"
+    "notes prices"
+    "acts  acts";
+  gap: 8px 20px;
+  align-items: start;
+  padding: 16px 18px;
+  transition: box-shadow 0.15s;
+}
+.watchlist-card:hover { box-shadow: var(--shadow-md); }
+.watchlist-card--hit {
+  border-color: var(--green-border);
+  background: var(--green-bg);
+}
+[data-theme='dark'] .watchlist-card--hit {
+  border-color: var(--green-border);
+  background: var(--green-bg);
+}
+
+/* Main — symbol + name */
+.watchlist-card-main  { grid-area: main; min-width: 0; }
+.watchlist-card-symbol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.watchlist-symbol {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.watchlist-card-name {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-top: 3px;
+}
+
+/* Prices column */
+.watchlist-card-prices {
+  grid-area: prices;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+.watchlist-price-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.watchlist-price-label {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.watchlist-price-val {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* Notes */
+.watchlist-card-notes {
+  grid-area: notes;
+  font-size: 12px;
+  color: var(--text-2);
+  font-style: italic;
+}
+
+/* Action buttons */
+.watchlist-card-actions {
+  grid-area: acts;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+/* Inline edit form inside a card */
+.watchlist-edit { grid-column: 1 / -1; }
+
+@media (max-width: 600px) {
+  .watchlist-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "prices"
+      "notes"
+      "acts";
+  }
+  .watchlist-card-prices { justify-content: flex-start; }
+  .watchlist-price-col   { align-items: flex-start; }
+  .watchlist-form-grid   { grid-template-columns: 1fr; }
 }

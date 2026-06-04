@@ -26,6 +26,7 @@ import SummaryBar from './SummaryBar'
 import MutualFundDetailModal from './MutualFundDetailModal'
 import MfNavStatusBar from './MfNavStatusBar'
 import { formatNavDate } from '../utils/mfNavDisplay'
+import PageActions from './PageActions'
 import {
   MutualFundCard,
   HoldingCardSkeleton,
@@ -127,7 +128,7 @@ function EmptyState({ onAdd }) {
   )
 }
 
-export default function MutualFunds({ showToast }) {
+export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransactions }) {
   const { funds, loading, lastUpdated, addFund, removeFund, updateFund, refreshNAVs } =
     useMutualFunds()
 
@@ -231,6 +232,11 @@ export default function MutualFunds({ showToast }) {
       </div>
 
       <MfNavStatusBar funds={funds} />
+
+      <PageActions actions={[
+        onOpenSIPTracker && { icon: '🔁', label: 'SIP Tracker', onClick: onOpenSIPTracker },
+        onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
+      ].filter(Boolean)} />
 
       {funds.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />

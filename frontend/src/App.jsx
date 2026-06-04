@@ -8,6 +8,10 @@ import ToastContainer from './components/Toast'
 import WelcomeModal from './components/WelcomeModal'
 import ProfileModal from './components/ProfileModal'
 import XirrBackfillBanner from './components/XirrBackfillBanner'
+import TransactionsModal from './components/TransactionsModal'
+import SIPTrackerModal from './components/SIPTrackerModal'
+import SharedPortfolioModal from './components/SharedPortfolioModal'
+import ReconciliationModal from './components/ReconciliationModal'
 import {
   downloadPortfolioBackup,
   downloadCategoryBackup,
@@ -19,6 +23,7 @@ import {
   wasBackupReminderShownThisSession,
   loadSamplePortfolio,
 } from './utils/portfolioBackup'
+import { generateShareUrl, readShareFromUrl, expandSnapshot } from './utils/portfolioShare'
 import { backfillTransactionsFromHoldings } from './utils/transactions'
 import { seedLedgerPortfolioHistory } from './utils/portfolioSnapshots'
 import { estimateSamplePortfolioValueINR } from './utils/demoPortfolioHistory'
@@ -69,6 +74,14 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [taxReportOpen, setTaxReportOpen] = useState(false)
   const [csvImportOpen, setCsvImportOpen] = useState(false)
+  const [txHistoryOpen, setTxHistoryOpen] = useState(false)
+  const [txHistoryAssetType, setTxHistoryAssetType] = useState('')
+  const [sipTrackerOpen, setSipTrackerOpen] = useState(false)
+  const [reconciliationOpen, setReconciliationOpen] = useState(false)
+  const [sharedPortfolio, setSharedPortfolio] = useState(() => {
+    const snap = readShareFromUrl()
+    return snap ? expandSnapshot(snap) : null
+  })
   const [xirrBannerVisible, setXirrBannerVisible] = useState(() => shouldShowXirrBackfillBanner())
   const [missingBuyDates, setMissingBuyDates] = useState(() => countHoldingsMissingBuyDate().total)
   const searchRef = useRef(null)
@@ -172,6 +185,19 @@ export default function App() {
     window.setTimeout(() => window.location.reload(), 600)
   }, [showToast])
 
+  const handleSharePortfolio = useCallback(() => {
+    try {
+      const url = generateShareUrl()
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('Share URL copied to clipboard', 'success')
+      }).catch(() => {
+        showToast(`Share URL: ${url}`, 'info')
+      })
+    } catch {
+      showToast('Could not generate share URL', 'error')
+    }
+  }, [showToast])
+
   const handleLoadSample = useCallback(async () => {
     const data = loadSamplePortfolio()
     storage.importAll(data)
@@ -192,12 +218,22 @@ export default function App() {
 
   const renderTab = () => {
     const props = { showToast }
+
+    const openTxFor = (assetType) => {
+      setTxHistoryAssetType(assetType)
+      setTxHistoryOpen(true)
+    }
+
     const content = (() => {
       switch (activeTab) {
         case 'dashboard':    return <Dashboard {...props} />
-        case 'indianStocks': return <IndianStocks {...props} />
-        case 'usStocks':     return <USStocks {...props} />
-        case 'mutualFunds':  return <MutualFunds {...props} />
+        case 'indianStocks': return <IndianStocks {...props}
+          onOpenTransactions={() => openTxFor('indianStock')} />
+        case 'usStocks':     return <USStocks {...props}
+          onOpenTransactions={() => openTxFor('usStock')} />
+        case 'mutualFunds':  return <MutualFunds {...props}
+          onOpenSIPTracker={() => setSipTrackerOpen(true)}
+          onOpenTransactions={() => openTxFor('mutualFund')} />
         case 'insights':     return <Insights {...props} />
         case 'otherAssets':  return <OtherAssets {...props} />
         case 'insurance':    return <Insurance {...props} />
@@ -273,6 +309,13 @@ export default function App() {
             setProfileOpen(false)
             setCsvImportOpen(true)
           }}
+          onOpenSIPTracker={undefined}
+          onOpenTransactions={undefined}
+          onSharePortfolio={handleSharePortfolio}
+          onOpenReconciliation={() => {
+            setProfileOpen(false)
+            setReconciliationOpen(true)
+          }}
           showToast={showToast}
         />
       )}
@@ -287,6 +330,34 @@ export default function App() {
         open={csvImportOpen}
         onClose={() => setCsvImportOpen(false)}
         showToast={showToast}
+      />
+
+      <TransactionsModal
+        key={txHistoryAssetType}
+        open={txHistoryOpen}
+        defaultAssetType={txHistoryAssetType}
+        onClose={() => { setTxHistoryOpen(false); setTxHistoryAssetType('') }}
+      />
+
+      <SIPTrackerModal
+        open={sipTrackerOpen}
+        onClose={() => setSipTrackerOpen(false)}
+        showToast={showToast}
+      />
+
+      {sharedPortfolio && (
+        <SharedPortfolioModal
+          portfolio={sharedPortfolio}
+          onClose={() => {
+            setSharedPortfolio(null)
+            window.location.hash = ''
+          }}
+        />
+      )}
+
+      <ReconciliationModal
+        open={reconciliationOpen}
+        onClose={() => setReconciliationOpen(false)}
       />
     </ErrorBoundary>
   )

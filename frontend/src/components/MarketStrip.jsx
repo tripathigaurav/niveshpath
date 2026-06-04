@@ -8,9 +8,11 @@ const ORDERED_KEYS = [
 const POLL_INTERVAL_MS = 30000
 
 function Pill({ label, price, changePct, prefix = '' }) {
-  const isPos = changePct > 0
-  const isNeg = changePct < 0
+  const isPos = changePct != null && changePct > 0
+  const isNeg = changePct != null && changePct < 0
   const sign = isPos ? '+' : ''
+
+  const changeClass = isPos ? styles.pos : isNeg ? styles.neg : styles.neutral
 
   return (
     <div className={styles.msPill}>
@@ -21,7 +23,7 @@ function Pill({ label, price, changePct, prefix = '' }) {
           : '—'}
       </span>
       {changePct != null && (
-        <span className={[styles.msChange, isPos ? styles.pos : isNeg ? styles.neg : ''].filter(Boolean).join(' ')}>
+        <span className={[styles.msChange, changeClass].join(' ')}>
           {sign}{changePct.toFixed(2)}%
         </span>
       )}
@@ -78,10 +80,42 @@ export default function MarketStrip() {
         <SkeletonPill key={`${trackPrefix}-sk-${i}`} />
       ))
     }
+
+    // Compute MCX gold price (INR/10g) = goldUSD/oz × usdInr / 31.1035 × 10
+    const goldUsd = data.gold?.price
+    const usdInr = data.usdInr?.price
+    const mcxGold = goldUsd != null && usdInr != null
+      ? goldUsd * (10 / 31.1035) * usdInr
+      : null
+    const mcxGoldChangePct = data.gold?.dayChangePct ?? null
+
     const pills = ORDERED_KEYS.map((key) => {
       const item = data[key]
       if (!item) return null
-      const pricePrefix = key === 'usdInr' ? '₹' : key === 'gold' || key === 'crude' ? '$' : ''
+      if (key === 'gold') {
+        // Show MCX equivalent (INR/10g) if available, else USD
+        if (mcxGold != null) {
+          return (
+            <Pill
+              key={`${trackPrefix}-${key}`}
+              label="Gold MCX"
+              price={Math.round(mcxGold)}
+              changePct={mcxGoldChangePct}
+              prefix="₹"
+            />
+          )
+        }
+        return (
+          <Pill
+            key={`${trackPrefix}-${key}`}
+            label={item.label || key}
+            price={item.price}
+            changePct={item.dayChangePct}
+            prefix="$"
+          />
+        )
+      }
+      const pricePrefix = key === 'usdInr' ? '₹' : key === 'crude' ? '$' : ''
       return (
         <Pill
           key={`${trackPrefix}-${key}`}

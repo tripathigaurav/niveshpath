@@ -50,6 +50,8 @@ export default function ProfileModal({
   onLoadSample,
   onOpenTaxReport,
   onOpenCsvImport,
+  onSharePortfolio,
+  onOpenReconciliation,
   showToast,
 }) {
   const [name, setName] = useState(settings.userName || '')
@@ -227,6 +229,12 @@ export default function ProfileModal({
                 </button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenCsvImport}>
                   Import broker CSV
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={onSharePortfolio}>
+                  Share portfolio
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenReconciliation}>
+                  Reconcile holdings
                 </button>
               </div>
             </div>

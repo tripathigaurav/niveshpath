@@ -132,11 +132,11 @@ All portfolio data is stored in browser localStorage only. The backend is a loca
 - [x] Phase 1 — Foundation (Indian Stocks + Backend)
 - [x] Phase 2 — US Stocks, Mutual Funds, Other Assets, Dashboard
 - [x] Phase 2.5 — Security hardening, responsive design, accessibility, code quality
-- [ ] Phase 3 — Data Safety (backup reminders, transaction log)
-- [ ] Phase 4 — Analytics (XIRR, Gold tracking, portfolio history)
-- [ ] Phase 5 — Live Data (auto-refresh, watchlist, alerts)
-- [ ] Phase 6 — SIP Tracker & Broker Import
-- [ ] Phase 7 — Tax Reports & Mobile Polish
+- [x] Phase 3 — Data Safety (backup reminders, transaction log, global transaction history screen)
+- [x] Phase 4 — Analytics (XIRR, portfolio history chart, top gainers/losers, allocation donut)
+- [x] Phase 5 — Live Data (auto-refresh, watchlist with price alerts)
+- [x] Phase 6 — SIP Tracker & Broker Import (Zerodha, Groww, Upstox, Angel One, MFCentral/CAS, manual mapping)
+- [x] Phase 7 — Tax Reports & Mobile Polish (STCG/LTCG, FMV grandfathering, STT, portfolio share URL)
 
 See [FUTURE_PLANS.md](FUTURE_PLANS.md) for detailed roadmap.
 

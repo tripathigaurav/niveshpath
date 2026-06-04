@@ -1,22 +1,61 @@
-import { useMemo, useState, useRef } from 'react'
+import { useMemo, useState, useRef, useCallback } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { formatINR } from '../utils/formatters'
 import {
   calculateEquityTaxReport,
   getAvailableFinancialYears,
+  getPreGrandfatheringSymbols,
 } from '../utils/taxCalculator'
 import { downloadTaxReportPdf } from '../utils/taxReportPdf'
+import { api } from '../utils/api'
 
 export default function TaxReportModal({ open, onClose, showToast }) {
   const modalRef = useRef(null)
   const years = useMemo(() => getAvailableFinancialYears(), [open])
   const [fy, setFy] = useState(() => years[0] ?? new Date().getFullYear() - 1)
+  const [fmvInputs, setFmvInputs] = useState({}) // { [symbol]: string }
+  const [showFmv, setShowFmv] = useState(false)
+  const [fmvFetching, setFmvFetching] = useState(false)
 
   useFocusTrap(modalRef, open, onClose)
 
+  const preGrandfatheringSymbols = useMemo(() => (open ? getPreGrandfatheringSymbols() : []), [open])
+
+  /** Auto-fetch closing prices for all pre-2018 symbols from the backend. */
+  const handleAutoFetchFmv = useCallback(async () => {
+    if (!preGrandfatheringSymbols.length) return
+    setFmvFetching(true)
+    const results = {}
+    await Promise.allSettled(
+      preGrandfatheringSymbols.map(async (sym) => {
+        try {
+          const nseSymbol = sym.includes('.') ? sym : `${sym}.NS`
+          const data = await api.getStockHistoryPrice(nseSymbol, '2018-01-31')
+          if (data?.price != null) {
+            results[sym] = String(data.price)
+          }
+        } catch {
+          // Skip symbols that fail
+        }
+      })
+    )
+    setFmvInputs((prev) => ({ ...prev, ...results }))
+    setFmvFetching(false)
+    showToast?.(`FMV fetched for ${Object.keys(results).length} / ${preGrandfatheringSymbols.length} symbol(s)`, 'success')
+  }, [preGrandfatheringSymbols, showToast])
+
+  const fmvData = useMemo(() => {
+    const result = {}
+    for (const [sym, val] of Object.entries(fmvInputs)) {
+      const n = parseFloat(val)
+      if (Number.isFinite(n) && n > 0) result[sym] = n
+    }
+    return result
+  }, [fmvInputs])
+
   const report = useMemo(
-    () => calculateEquityTaxReport({ fyStartYear: fy }),
-    [fy, open]
+    () => calculateEquityTaxReport({ fyStartYear: fy, fmvData }),
+    [fy, fmvData, open]
   )
 
   if (!open) return null
@@ -54,6 +93,53 @@ export default function TaxReportModal({ open, onClose, showToast }) {
             </select>
           </div>
 
+          {preGrandfatheringSymbols.length > 0 && (
+            <div className="tax-fmv-section">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm tax-fmv-toggle"
+                aria-expanded={showFmv}
+                onClick={() => setShowFmv((v) => !v)}
+              >
+                {showFmv ? '▼' : '▶'} Grandfathering FMV (Jan 31, 2018) — {preGrandfatheringSymbols.length} symbol{preGrandfatheringSymbols.length !== 1 ? 's' : ''}
+              </button>
+              {showFmv && (
+                <div className="tax-fmv-grid">
+                  <div className="tax-fmv-header-row">
+                    <p className="tax-fmv-note">
+                      For LTCG on shares bought before Jan 31 2018, enter the closing price on that date.
+                      Cost of acquisition = max(actual cost, min(FMV, sale price)).
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={fmvFetching}
+                      onClick={handleAutoFetchFmv}
+                      title="Fetch Jan 31 2018 closing prices from Yahoo Finance via backend"
+                    >
+                      {fmvFetching ? 'Fetching…' : '⬇ Auto-fetch FMV'}
+                    </button>
+                  </div>
+                  {preGrandfatheringSymbols.map((sym) => (
+                    <div key={sym} className="tax-fmv-row">
+                      <label className="tax-fmv-label" htmlFor={`fmv-${sym}`}>{sym}</label>
+                      <input
+                        id={`fmv-${sym}`}
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="form-input tax-fmv-input"
+                        placeholder="₹ FMV on 31 Jan 2018"
+                        value={fmvInputs[sym] ?? ''}
+                        onChange={(e) => setFmvInputs((p) => ({ ...p, [sym]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="tax-summary-grid">
             <div className="tax-summary-card">
               <span className="tax-summary-label">STCG (realized)</span>
@@ -71,6 +157,10 @@ export default function TaxReportModal({ open, onClose, showToast }) {
               <span className="tax-summary-label">Est. tax due</span>
               <span className="tax-summary-val">{formatINR(report.summary.estimatedTax, true)}</span>
             </div>
+            <div className="tax-summary-card">
+              <span className="tax-summary-label">Total STT paid</span>
+              <span className="tax-summary-val">{formatINR(report.summary.totalStt, true)}</span>
+            </div>
           </div>
 
           {report.rows.length === 0 ? (
@@ -80,15 +170,16 @@ export default function TaxReportModal({ open, onClose, showToast }) {
               <table className="data-table tax-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Symbol</th>
-                    <th>Qty</th>
-                    <th>Proceeds</th>
-                    <th>Cost</th>
-                    <th>Gain</th>
-                    <th>Type</th>
-                    <th>Days</th>
-                    <th>Est. tax</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Symbol</th>
+                    <th scope="col" className="num">Qty</th>
+                    <th scope="col" className="num">Proceeds</th>
+                    <th scope="col" className="num">Cost</th>
+                    <th scope="col" className="num">Gain</th>
+                    <th scope="col">Type</th>
+                    <th scope="col" className="num">Days</th>
+                    <th scope="col" className="num">Est. tax</th>
+                    <th scope="col" className="num">STT</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -96,13 +187,14 @@ export default function TaxReportModal({ open, onClose, showToast }) {
                     <tr key={`${r.saleDate}-${r.symbol}-${i}`}>
                       <td>{r.saleDate}</td>
                       <td>{r.symbol}</td>
-                      <td>{r.qty}</td>
-                      <td>{formatINR(r.proceeds)}</td>
-                      <td>{formatINR(r.costBasis)}</td>
-                      <td className={r.gain >= 0 ? 'pos' : 'neg'}>{formatINR(r.gain)}</td>
+                      <td className="num mono">{r.qty}</td>
+                      <td className="num">{formatINR(r.proceeds)}</td>
+                      <td className="num">{formatINR(r.costBasis)}</td>
+                      <td className={`num ${r.gain >= 0 ? 'pos' : 'neg'}`}>{formatINR(r.gain)}</td>
                       <td>{r.taxType}</td>
-                      <td>{r.holdingDays}</td>
-                      <td>{formatINR(r.taxDue)}</td>
+                      <td className="num">{r.holdingDays}</td>
+                      <td className="num">{formatINR(r.taxDue)}</td>
+                      <td className="num">{formatINR(r.stt)}</td>
                     </tr>
                   ))}
                 </tbody>

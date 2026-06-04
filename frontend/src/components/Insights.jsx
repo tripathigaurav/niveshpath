@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { usePortfolioPerformers } from '../hooks/usePortfolioPerformers'
 import PerformersCard from './PerformersCard'
+import { getHarvestCandidates, getRealizedGainsFY } from '../utils/taxHarvesting'
 
 const COMING_SOON = [
   {
@@ -73,6 +75,10 @@ function ComingSoonCard({ icon, title, desc }) {
 
 export default function Insights() {
   const perf = usePortfolioPerformers()
+  const { candidates, realizedGains } = useMemo(() => ({
+    candidates: getHarvestCandidates(),
+    realizedGains: getRealizedGainsFY(),
+  }), [])
 
   if (!perf.hasAny) {
     return (
@@ -140,6 +146,69 @@ export default function Insights() {
             ))}
           </div>
         </section>
+
+        {candidates.length > 0 && (
+          <section className="insights-section">
+            <div className="insights-section-label">Tax harvesting opportunities</div>
+            <p className="insights-harvest-note">
+              These holdings have unrealized losses. Selling before 31 Mar lets you offset realized gains this FY.{' '}
+              <em>Not financial advice.</em>
+            </p>
+            {(realizedGains.realizedStcg > 0 || realizedGains.realizedLtcg > 0) && (
+              <div className="insights-harvest-realized">
+                <span>Realized this FY: </span>
+                {realizedGains.realizedStcg > 0 && (
+                  <span className="harvest-pill harvest-pill--stcg">STCG ₹{realizedGains.realizedStcg.toLocaleString('en-IN')}</span>
+                )}
+                {realizedGains.realizedLtcg > 0 && (
+                  <span className="harvest-pill harvest-pill--ltcg">LTCG ₹{realizedGains.realizedLtcg.toLocaleString('en-IN')}</span>
+                )}
+              </div>
+            )}
+            <div className="table-wrap insights-harvest-wrap">
+              <table className="data-table insights-harvest-table">
+                <colgroup>
+                  <col className="col-harvest-holding" />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col className="col-harvest-notes" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">Holding</th>
+                    <th scope="col">Type</th>
+                    <th scope="col" className="num">Unrealized loss</th>
+                    <th scope="col">Term</th>
+                    <th scope="col" className="num">Est. tax saving</th>
+                    <th scope="col">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {candidates.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <div className="harvest-holding-line">
+                          <span className="harvest-icon" aria-hidden="true">{c.icon}</span>
+                          <span className="harvest-symbol">{c.symbol}</span>
+                        </div>
+                        {c.name !== c.symbol && (
+                          <div className="harvest-name">{c.name}</div>
+                        )}
+                      </td>
+                      <td><span className="harvest-type">{c.assetType === 'indianStock' ? 'Stock' : 'MF'}</span></td>
+                      <td className="num pnl-loss">−₹{Math.round(c.unrealizedLoss).toLocaleString('en-IN')} ({c.pnlPct != null ? c.pnlPct.toFixed(1) : '—'}%)</td>
+                      <td><span className={`harvest-term ${c.isLongTerm ? 'long' : 'short'}`}>{c.isLongTerm ? 'LTCL' : 'STCL'}</span></td>
+                      <td className="num pnl-gain">≈ ₹{Math.round(c.potentialTaxSaving).toLocaleString('en-IN')}</td>
+                      <td className="harvest-notes">{c.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )

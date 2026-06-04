@@ -69,25 +69,44 @@ _cache_lock = threading.Lock()
 
 
 def fetch_ticker_data(symbol: str) -> dict:
-    """Return price, previousClose, dayChange, dayChangePct for a ticker."""
-    try:
-        ticker = yf.Ticker(symbol)
-        fi = ticker.fast_info
-        price = fi.get("lastPrice") or fi.get("regularMarketPrice")
-        prev = fi.get("previousClose") or fi.get("regularMarketPreviousClose")
-        day_change = round(price - prev, 4) if price is not None and prev is not None else None
-        day_pct = round((day_change / prev) * 100, 2) if day_change is not None and prev else None
-        return {
-            "symbol": symbol,
-            "price": round(float(price), 4) if price is not None else None,
-            "previousClose": round(float(prev), 4) if prev is not None else None,
-            "dayChange": day_change,
-            "dayChangePct": day_pct,
-            "error": None,
-        }
-    except Exception as exc:
-        return {"symbol": symbol, "price": None, "previousClose": None,
-                "dayChange": None, "dayChangePct": None, "error": str(exc)}
+    """Return price, previousClose, dayChange, dayChangePct for a ticker.
+
+    For Indian NSE symbols (ending .NS), if Yahoo returns no price, falls back
+    to the BSE equivalent (.BO suffix) automatically.
+    """
+    def _query(sym: str) -> dict:
+        try:
+            ticker = yf.Ticker(sym)
+            fi = ticker.fast_info
+            price = fi.get("lastPrice") or fi.get("regularMarketPrice")
+            prev = fi.get("previousClose") or fi.get("regularMarketPreviousClose")
+            day_change = round(price - prev, 4) if price is not None and prev is not None else None
+            day_pct = round((day_change / prev) * 100, 2) if day_change is not None and prev else None
+            return {
+                "symbol": sym,
+                "price": round(float(price), 4) if price is not None else None,
+                "previousClose": round(float(prev), 4) if prev is not None else None,
+                "dayChange": day_change,
+                "dayChangePct": day_pct,
+                "error": None,
+            }
+        except Exception as exc:
+            return {"symbol": sym, "price": None, "previousClose": None,
+                    "dayChange": None, "dayChangePct": None, "error": str(exc)}
+
+    result = _query(symbol)
+
+    # Fallback: NSE (.NS) → BSE (.BO) when price is missing
+    if result["price"] is None and symbol.upper().endswith(".NS"):
+        bse_symbol = symbol[:-3] + ".BO"
+        fallback = _query(bse_symbol)
+        if fallback["price"] is not None:
+            # Return the BSE data but keep the originally-requested symbol in the key
+            fallback["symbol"] = symbol
+            fallback["_source"] = "BSE"
+            return fallback
+
+    return result
 
 
 # ─── Stock endpoints ─────────────────────────────────────────────────────────
@@ -195,6 +214,48 @@ def get_corporate_actions():
             "dividends": list(reversed(dividends)),
             "splits": list(reversed(split_list)),
             "nextEarnings": earnings_date,
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/stock/history-price", methods=["GET"])
+@limiter.limit("20 per minute")
+def get_stock_history_price():
+    """Return the closing price of a stock on a specific date (or nearest available day).
+    Used for Section 112A grandfathering (FMV on Jan 31 2018).
+    """
+    symbol = request.args.get("symbol", "").strip()
+    date_str = request.args.get("date", "").strip()
+    if not symbol or not date_str:
+        return jsonify({"error": "symbol and date are required"}), 400
+    symbol, err = validate_symbol(symbol)
+    if err:
+        return jsonify({"error": err}), 400
+    try:
+        target = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "date must be YYYY-MM-DD"}), 400
+    try:
+        # Fetch a small window of history around the target date
+        start = (target - timedelta(days=5)).strftime("%Y-%m-%d")
+        end = (target + timedelta(days=5)).strftime("%Y-%m-%d")
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(start=start, end=end)
+        if hist is None or hist.empty:
+            return jsonify({"error": f"No price data for {symbol} near {date_str}"}), 404
+        # Find closest date
+        hist = hist.reset_index()
+        hist["_date"] = hist["Date"].apply(lambda d: d.date() if hasattr(d, "date") else d)
+        hist["_diff"] = hist["_date"].apply(lambda d: abs((d - target).days))
+        row = hist.loc[hist["_diff"].idxmin()]
+        close_price = round(float(row["Close"]), 4)
+        actual_date = str(row["_date"])
+        return jsonify({
+            "symbol": symbol,
+            "requestedDate": date_str,
+            "actualDate": actual_date,
+            "price": close_price,
         })
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500

@@ -24,6 +24,7 @@ import SortTh from './SortTh'
 import FilterBar from './FilterBar'
 import LiveBadge from './LiveBadge'
 import SummaryBar from './SummaryBar'
+import PageActions from './PageActions'
 import {
   IndianStockCard,
   HoldingCardSkeleton,
@@ -159,7 +160,7 @@ function EmptyState({ onAdd }) {
   )
 }
 
-export default function IndianStocks({ showToast }) {
+export default function IndianStocks({ showToast, onOpenTransactions }) {
   const { stocks, loading, lastUpdated, addStock, removeStock, updateStock, refreshPrices } =
     useIndianStocks()
 
@@ -271,6 +272,10 @@ export default function IndianStocks({ showToast }) {
       </div>
 
       <MarketStatusBar market="indian" />
+
+      <PageActions actions={[
+        onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
+      ].filter(Boolean)} />
 
       {stocks.length === 0 ? (
         <EmptyState onAdd={() => setShowAdd(true)} />

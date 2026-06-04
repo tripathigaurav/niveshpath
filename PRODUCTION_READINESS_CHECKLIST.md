@@ -7,9 +7,9 @@
 ## 🔴 Critical (Blockers) — Must Complete
 
 ### Data Integrity & Validation
-- [ ] Audit trail implementation (all mutations logged)
-- [ ] Portfolio validator function (quantity checks)
-- [ ] Holdings reconciliation logic (tx vs holdings)
+- [x] Audit trail implementation (all mutations logged)
+- [x] Portfolio validator function (quantity checks)
+- [x] Holdings reconciliation logic (tx vs holdings)
 - [ ] Negative quantity detection
 - [ ] Orphaned transaction cleanup
 - [ ] Portfolio Health widget on Dashboard
@@ -17,35 +17,38 @@
 - [ ] Manual reconciliation UI for complex issues
 
 ### Tax Compliance
-- [ ] STCG/LTCG calculator implemented
-- [ ] STT calculation (0.025% on sells)
-- [ ] Grandfathering support (Jan 31, 2018 FMV)
-- [ ] FIFO cost basis calculation
-- [ ] Tax year (FY) grouping
-- [ ] Tax summary card on Dashboard
-- [ ] Downloadable tax report (CSV/PDF)
-- [ ] Tax disclaimer added to UI
-- [ ] SEBI disclaimer added (footer/about)
+- [x] STCG/LTCG calculator implemented
+- [x] STT calculation (0.025% on sells)
+- [x] Grandfathering support (Jan 31, 2018 FMV)
+- [x] FIFO cost basis calculation
+- [x] Tax year (FY) grouping
+- [x] Tax summary card on Dashboard
+- [x] Downloadable tax report (CSV/PDF)
+- [x] Tax disclaimer added to UI
+- [x] SEBI disclaimer added (footer/about)
 
 ### Data Reliability
-- [ ] Price fallback system (Yahoo → NSE → cached)
+- [x] Price fallback system (Yahoo NSE → BSE → cached)
 - [ ] Price caching in IndexedDB
 - [ ] Retry logic with exponential backoff
 - [ ] Stale price indicator in UI
 - [ ] Offline mode handling
-- [ ] Error boundary components
+- [x] Error boundary components
 - [ ] Network failure graceful degradation
 
 ### Broker Integration
-- [ ] CSV parser (Papa Parse installed)
-- [ ] Zerodha Console CSV format support
-- [ ] Groww CSV format support
-- [ ] Upstox CSV format support
-- [ ] MFCentral CSV format support
-- [ ] Column auto-detection logic
-- [ ] Manual column mapping UI
-- [ ] Duplicate detection algorithm
-- [ ] Import preview screen
+- [x] CSV parser (Papa Parse installed)
+- [x] Zerodha Console CSV format support
+- [x] Groww CSV format support
+- [x] Upstox CSV format support
+- [x] MFCentral CSV format support
+- [x] ICICI Direct CSV format support
+- [x] Paytm Money CSV format support
+- [x] CAMS/KARVY paste-text import
+- [x] Column auto-detection logic
+- [x] Manual column mapping UI
+- [x] Duplicate detection algorithm
+- [x] Import preview screen
 - [ ] Merge strategy selector (skip/replace/merge)
 - [ ] Bulk import validation
 
@@ -65,22 +68,22 @@
 ## 🟠 High Priority — Strongly Recommended
 
 ### User Experience
-- [ ] Onboarding flow (multi-step wizard)
-- [ ] Demo portfolio with sample data
+- [x] Onboarding flow (multi-step wizard)
+- [x] Demo portfolio with sample data
 - [ ] Guided tour (first-time user)
-- [ ] Empty state improvements
-- [ ] Loading skeleton screens (verify all pages)
-- [ ] Error messages user-friendly
-- [ ] Success toasts for all actions
+- [x] Empty state improvements
+- [x] Loading skeleton screens (verify all pages)
+- [x] Error messages user-friendly
+- [x] Success toasts for all actions
 - [ ] Undo/redo for critical actions
 - [ ] Bulk actions (delete, export)
 
 ### Data Management
-- [ ] Auto-backup reminder (7+ days no export)
-- [ ] Last export date displayed
+- [x] Auto-backup reminder (7+ days no export)
+- [x] Last export date displayed
 - [ ] Import/export version compatibility check
 - [ ] Data migration logic (schema changes)
-- [ ] Category-wise export (partial backups)
+- [x] Category-wise export (partial backups)
 - [ ] JSON export file validation
 - [ ] Corrupted data recovery flow
 
@@ -107,13 +110,13 @@
 ## 🟡 Medium Priority — Nice-to-have
 
 ### Analytics & Insights
-- [ ] Sector allocation chart
+- [x] Sector allocation chart
 - [ ] Performance attribution
 - [ ] Concentration risk indicator
 - [ ] Portfolio beta calculation
 - [ ] Benchmark comparison (Nifty, Sensex)
-- [ ] Top gainers/losers (verify working)
-- [ ] Tax harvesting suggestions
+- [x] Top gainers/losers (verify working)
+- [x] Tax harvesting suggestions
 
 ### Market Features
 - [ ] Watchlist tab
@@ -145,19 +148,21 @@
 
 ## ⚪ Low Priority — Future Enhancements
 
+### Low Priority — Future Enhancements
+
 ### Advanced Features
-- [ ] SIP tracker with XIRR per SIP
+- [x] SIP tracker with XIRR per SIP
 - [ ] Goal-based planning
 - [ ] Multi-currency support
 - [ ] Crypto tracking
-- [ ] Gold/commodity tracking
+- [x] Gold/commodity tracking
 - [ ] Real estate detailed tracking
 - [ ] Debt instrument support
 
 ### Collaboration
 - [ ] Multi-device sync (opt-in backend)
 - [ ] Family/joint portfolios
-- [ ] Share portfolio (read-only link)
+- [x] Share portfolio (read-only link)
 - [ ] Advisor access (read-only)
 - [ ] Export for CA (ITR format)
 

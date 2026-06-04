@@ -3,6 +3,7 @@ import { useIndianStocks, useUSStocks, useMutualFunds, useOtherAssets, useInsura
 import { summarizeInsurance, formatInsuranceRenewalsLine } from '../utils/insuranceMetrics'
 import UpcomingEventsCard from './UpcomingEventsCard'
 import { calcPortfolioXirr, formatXirrDisplay } from '../utils/xirrMetrics'
+import { calculateEquityTaxReport } from '../utils/taxCalculator'
 import { recordDailySnapshot } from '../utils/portfolioSnapshots'
 import {
   calcIndianStockMetrics,
@@ -275,14 +276,20 @@ function DashboardFooter({ lastUpdated, pricesStale }) {
 
   return (
     <footer className="dash-footer">
-      <span className={`dash-footer-live ${pricesStale ? 'dash-footer-live--stale' : ''}`}>
-        <span className="dash-footer-dot" aria-hidden="true" />
-        {pricesStale ? 'Cached prices' : 'Live'}
-      </span>
-      <span className="dash-footer-sep">·</span>
-      <span>Last updated: {timeStr}</span>
-      <span className="dash-footer-sep">·</span>
-      <span>Auto-refresh: {intervalLabel}</span>
+      <div className="dash-footer-top">
+        <span className={`dash-footer-live ${pricesStale ? 'dash-footer-live--stale' : ''}`}>
+          <span className="dash-footer-dot" aria-hidden="true" />
+          {pricesStale ? 'Cached prices' : 'Live'}
+        </span>
+        <span className="dash-footer-sep">·</span>
+        <span>Last updated: {timeStr}</span>
+        <span className="dash-footer-sep">·</span>
+        <span>Auto-refresh: {intervalLabel}</span>
+      </div>
+      <p className="dash-footer-sebi">
+        ⚠️ This app is not registered with SEBI. It is a personal finance tracker for informational purposes only.
+        Investment decisions should be made after consulting a SEBI-registered investment advisor.
+      </p>
     </footer>
   )
 }
@@ -304,6 +311,16 @@ export default function Dashboard() {
     }),
     [inStocks, usStocks, funds, usdInr]
   )
+
+  // Current-FY tax summary (runs only when holdings exist)
+  const taxSummary = useMemo(() => {
+    if (!hasInvestments) return null
+    try {
+      return calculateEquityTaxReport()
+    } catch {
+      return null
+    }
+  }, [hasInvestments])
 
   const [snapshotRefresh, setSnapshotRefresh] = useState(0)
 
@@ -473,9 +490,36 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {taxSummary && (taxSummary.summary.totalStcg > 0 || taxSummary.summary.totalLtcg > 0) && (
+          <section className="dash-section dash-section--tax">
+            <div className="dash-section-label">Current FY Tax Estimate</div>
+            <div className="dash-tax-grid">
+              <div className="dash-tax-card">
+                <span className="dash-tax-label">STCG</span>
+                <span className="dash-tax-val">{formatINR(taxSummary.summary.totalStcg, true)}</span>
+                <span className="dash-tax-sub">@ 15%</span>
+              </div>
+              <div className="dash-tax-card">
+                <span className="dash-tax-label">LTCG</span>
+                <span className="dash-tax-val">{formatINR(taxSummary.summary.totalLtcg, true)}</span>
+                <span className="dash-tax-sub">above ₹1L exempt</span>
+              </div>
+              <div className="dash-tax-card dash-tax-card--accent">
+                <span className="dash-tax-label">Est. tax due</span>
+                <span className="dash-tax-val">{formatINR(taxSummary.summary.estimatedTax, true)}</span>
+                <span className="dash-tax-sub">not financial advice</span>
+              </div>
+              <div className="dash-tax-card">
+                <span className="dash-tax-label">STT paid</span>
+                <span className="dash-tax-val">{formatINR(taxSummary.summary.totalStt, true)}</span>
+                <span className="dash-tax-sub">on sells</span>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="dash-section dash-section--history">
-          <PortfolioHistoryChart
-            refreshKey={snapshotRefresh}
+          <PortfolioHistoryChart            refreshKey={snapshotRefresh}
             investedValue={t.grandInvested}
             liveCurrentValue={t.grandCurrent}
             todayPnl={t.portfolioToday}

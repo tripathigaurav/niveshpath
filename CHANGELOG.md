@@ -1,5 +1,36 @@
 # Changelog — Portfolio Tracker
 
+## v3.0 — Phases 3–7 Feature Complete (2026-06-04)
+
+### Phase 3 — Data Safety
+- **Global transaction history screen** (`TransactionsModal`) — all transactions across every asset type, filterable by asset, type, date range, symbol search, paginated, CSV export
+
+### Phase 5 — Live Data & Watchlist
+- **Full Watchlist tab** — add stocks/funds with target prices, visual gap indicator, bell-toggle for per-item price alerts, in-app toast when price crosses target during refresh
+
+### Phase 6 — SIP Tracker & Broker Import
+- **SIP Tracker modal** (`SIPTrackerModal`) — add/delete/pause SIPs with frequency (weekly/monthly/quarterly/yearly), overdue & upcoming status badges, "Mark as paid" advances next date and logs a buy transaction
+- **MFCentral/CAS CSV profile** added to broker profiles
+- **Angel One CSV profile** added
+- **Manual column mapper** — CSV wizard now offers a "Manual mapping…" broker option with per-field column-selector dropdowns; auto-guesses column names; falls through to preview
+
+### Phase 7 — Tax Reports & Mobile Polish
+- **FMV grandfathering (Section 112A)** — TaxReportModal shows collapsible FMV input section for pre-Jan-31-2018 symbols; cost of acquisition adjusted to `max(actual, min(FMV, salePrice))` when LTCG
+- **STT calculation** — 0.1% on equity sell proceeds; shown per row and summed in "Total STT paid" summary card
+- **Portfolio share URL** — "Share portfolio" in Profile → copies a base64-encoded URL to clipboard; recipient sees a read-only `SharedPortfolioModal` with holdings, P&L, and snapshot date
+- `portfolioShare.js` utility (`generateShareUrl`, `readShareFromUrl`, `expandSnapshot`)
+
+### Audit Trail
+- `logAudit` wired to `updateStock` in `useIndianStocks`, `useUSStocks`
+- `logAudit` wired to `updateFund` in `useMutualFunds`
+- `logAudit` wired to `addAsset`, `removeAsset`, `updateAsset` in `useOtherAssets`
+- `logAudit` wired to `addPolicy`, `removePolicy`, `updatePolicy` in `useInsurance`
+
+### Profile Tools
+- New buttons in Profile → Tools: **SIP tracker**, **Transaction history**, **Share portfolio**
+
+---
+
 ## v2.5 — Security, Accessibility & Code Quality
 
 ### Security

@@ -31,6 +31,10 @@ export interface OtherAssetHolding {
   currentValue: number | null
   notes: string
   addedDate: string
+  // Type-specific optional fields (FD / Bonds / PPF / EPF)
+  interestRate?: number | null   // FD rate, PPF/EPF rate, bond coupon rate
+  maturityDate?: string | null   // FD / bond maturity
+  couponRate?: number | null     // alternate field name used by some entries
 }
 
 export interface AppSettings {

@@ -13,7 +13,7 @@ function topBottomFromList(list) {
 function buildIndianPerformers(stocks) {
   const list = []
   for (const s of stocks) {
-    const { pnlPct } = calcIndianStockMetrics(s)
+    const { pnlPct, pnl, current } = calcIndianStockMetrics(s)
     if (pnlPct == null) continue
     list.push({
       id: s.id,
@@ -21,6 +21,10 @@ function buildIndianPerformers(stocks) {
       name: s.name || s.symbol,
       icon: '🇮🇳',
       pnlPct,
+      pnlAbs: pnl ?? null,
+      current: current ?? null,
+      buyPrice: s.buyPrice,
+      currentPrice: s.currentPrice,
     })
   }
   return topBottomFromList(list)
@@ -29,7 +33,7 @@ function buildIndianPerformers(stocks) {
 function buildUsPerformers(stocks) {
   const list = []
   for (const s of stocks) {
-    const { pnlPct } = calcUsPnl(s)
+    const { pnlPct, pnlINR } = calcUsPnl(s)
     if (pnlPct == null) continue
     list.push({
       id: s.id,
@@ -37,6 +41,9 @@ function buildUsPerformers(stocks) {
       name: s.name || s.symbol,
       icon: '🇺🇸',
       pnlPct,
+      pnlAbs: pnlINR ?? null,
+      buyPrice: s.buyPrice,
+      currentPrice: s.currentPrice,
     })
   }
   return topBottomFromList(list)
@@ -45,14 +52,17 @@ function buildUsPerformers(stocks) {
 function buildMfPerformers(funds) {
   const list = []
   for (const f of funds) {
-    const { pnlPct } = calcMfPnl(f)
+    const { pnlPct, pnl } = calcMfPnl(f)
     if (pnlPct == null) continue
     list.push({
       id: f.id,
-      symbol: f.schemeCode || f.name,
-      name: f.name,
+      symbol: f.schemeCode || f.schemeName,
+      name: f.schemeName || f.name,
       icon: '📋',
       pnlPct,
+      pnlAbs: pnl ?? null,
+      buyPrice: f.buyNAV,
+      currentPrice: f.currentNAV,
     })
   }
   return topBottomFromList(list)

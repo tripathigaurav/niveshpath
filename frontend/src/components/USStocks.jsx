@@ -14,6 +14,7 @@ import { storage } from '../utils/storage'
 import { calcCategoryXirr, formatXirrDisplay, buildHoldingXirrMap } from '../utils/xirrMetrics'
 import { partitionUsHoldings, US_CATEGORY } from '../utils/usHoldings'
 import MarketStatusBar from './MarketStatusBar'
+import PageActions from './PageActions'
 
 function EmptyState({ onAddStock }) {
   return (
@@ -38,7 +39,7 @@ function buildStockSubtitle(count) {
   return `${count} holding${count !== 1 ? 's' : ''}`
 }
 
-export default function USStocks({ showToast }) {
+export default function USStocks({ showToast, onOpenTransactions }) {
   const { stocks, loading, lastUpdated, usdInr, addStock, removeStock, updateStock, refreshPrices } =
     useUSStocks()
 
@@ -176,6 +177,10 @@ export default function USStocks({ showToast }) {
       </div>
 
       <MarketStatusBar market="us" />
+
+      <PageActions actions={[
+        onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
+      ].filter(Boolean)} />
 
       {stocks.length === 0 ? (
         <EmptyState onAddStock={() => setAddCategory('stock')} />

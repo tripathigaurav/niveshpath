@@ -125,7 +125,13 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
     <>
       <nav className={styles.navbar}>
         {/* Left — logo */}
-        <div className={styles.navbarLogo}>
+        <button
+          className={styles.navbarLogo}
+          onClick={() => onTabChange('dashboard')}
+          aria-label="Go to Dashboard"
+          title="Dashboard"
+          type="button"
+        >
           <svg viewBox="0 0 34 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="28">
             <defs>
               <linearGradient id="np-bar" x1="0" y1="1" x2="0" y2="0">
@@ -143,7 +149,7 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
             <span className={styles.logoHindi}>निवेश</span>
             <span className={styles.logoPath}>Path</span>
           </div>
-        </div>
+        </button>
 
         {/* Center — main tabs + More */}
         <div className={styles.navbarCenter}>

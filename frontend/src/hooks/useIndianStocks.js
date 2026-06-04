@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
 import { isIndianEtf, normalizeIndianHolding } from '../utils/indianHoldings'
 import { logBuy, logSell } from '../utils/transactions'
+import { logAudit } from '../utils/auditTrail'
 import { fetchBatchPricesWithFallback } from '../utils/priceProvider'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
@@ -73,6 +74,7 @@ export function useIndianStocks() {
 
   const updateStock = useCallback((id, data) => {
     setStocks((prev) => {
+      const before = prev.find((s) => s.id === id)
       const updated = prev.map((s) => {
         if (s.id !== id) return s
         const symbol = data.symbol.toUpperCase()
@@ -88,6 +90,7 @@ export function useIndianStocks() {
         })
       })
       storage.setIndianStocks(updated)
+      logAudit('update', 'indianStock', id, before, updated.find((s) => s.id === id))
       return updated
     })
   }, [])
