@@ -60,5 +60,6 @@ Thumbs.db
 *.sqlite
 .cache/
 
-# Local docs / notes (keep on disk, not in repo)
+# Local docs / notes (keep on disk, not in repo) — README.md is always tracked
 *.md
+!README.md
