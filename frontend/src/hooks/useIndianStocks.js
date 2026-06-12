@@ -5,18 +5,24 @@ import { isIndianEtf, normalizeIndianHolding } from '../utils/indianHoldings'
 import { logBuy, logSell } from '../utils/transactions'
 import { logAudit } from '../utils/auditTrail'
 import { fetchBatchPricesWithFallback, mergeQuoteIntoHolding } from '../utils/priceProvider'
+import { prefetchWindowedHistoricalPrices } from '../utils/xirrWindowed'
+import { markMarketRefreshed, getMarketRefreshedAt } from '../utils/portfolioRefresh'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useIndianStocks() {
   const [stocks, setStocks] = useState(() => storage.getIndianStocks().map(normalizeIndianHolding))
   const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(() => getMarketRefreshedAt('indian'))
   const [pricesStale, setPricesStale] = useState(false)
   const stocksRef = useRef(stocks)
   useEffect(() => { stocksRef.current = stocks }, [stocks])
 
   useEffect(() => {
-    const sync = () => setStocks(storage.getIndianStocks().map(normalizeIndianHolding))
+    const sync = () => {
+      setStocks(storage.getIndianStocks().map(normalizeIndianHolding))
+      const refreshedAt = getMarketRefreshedAt('indian')
+      if (refreshedAt) setLastUpdated(refreshedAt)
+    }
     window.addEventListener(PT_DATA_CHANGED, sync)
     return () => window.removeEventListener(PT_DATA_CHANGED, sync)
   }, [])
@@ -110,8 +116,11 @@ export function useIndianStocks() {
         storage.setIndianStocks(updated)
         return updated
       })
-      setLastUpdated(new Date())
+      const refreshedAt = new Date()
+      markMarketRefreshed('indian')
+      setLastUpdated(refreshedAt)
       notifyDataChanged()
+      prefetchWindowedHistoricalPrices(symbols, 'indianStock').catch(() => {})
     } finally {
       setLoading(false)
     }

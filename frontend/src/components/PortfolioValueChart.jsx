@@ -18,6 +18,7 @@ import {
   formatTooltipDate,
   getChartColors,
 } from '../utils/portfolioChartData'
+import HoldingsDataIssue from './HoldingsDataIssue'
 import './PortfolioValueChart.css'
 
 function ChartTooltip({ active, payload, viewMode }) {
@@ -59,6 +60,7 @@ export default function PortfolioValueChart({
   emptyMessage,
   showViewToggle = true,
   pricesStale = false,
+  dataWarning = null,
 }) {
   const gradientId = useId().replace(/:/g, '')
   const [breakdownOpen, setBreakdownOpen] = useState(false)
@@ -252,6 +254,14 @@ export default function PortfolioValueChart({
               range
             </span>
           ) : null)
+      )}
+
+      {dataWarning && (
+        <HoldingsDataIssue
+          assetType={dataWarning.assetType || 'indianStock'}
+          status={dataWarning}
+          context="portfolio"
+        />
       )}
 
       <div className="pvc-chart-shell">

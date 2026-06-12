@@ -391,7 +391,7 @@ export default function ProfileModal({
       {confirmSample && (
         <ConfirmDialog
           title="Load sample portfolio?"
-          message="This replaces your current data with demo holdings (buys over the last year) and seeds ~5 years of portfolio value history for the Dashboard chart. Export first if you need a backup."
+          message="This replaces your current data with demo holdings (~5 years of buys, sells, and SIPs across all asset types) and seeds portfolio chart history. Export first if you need a backup."
           confirmLabel="Load sample"
           onConfirm={() => {
             setConfirmSample(false)

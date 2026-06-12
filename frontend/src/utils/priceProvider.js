@@ -24,6 +24,7 @@ export async function fetchBatchPricesWithFallback(symbols) {
         any = true
         quotes[sym] = {
           price: row.price,
+          previousClose: row.previousClose,
           dayChange: row.dayChange,
           dayChangePct: row.dayChangePct,
           open: row.open,

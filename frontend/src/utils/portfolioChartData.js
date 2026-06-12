@@ -11,6 +11,7 @@ export const CHART_RANGES = [
   { id: '1M', label: '1M', days: 30 },
   { id: '6M', label: '6M', days: 183 },
   { id: '1Y', label: '1Y', days: 365 },
+  { id: '5Y', label: '5Y', days: 365 * 5 },
   { id: 'ALL', label: 'ALL', days: 0 },
 ]
 

@@ -86,7 +86,7 @@ export default function App() {
   const [missingBuyDates, setMissingBuyDates] = useState(() => countHoldingsMissingBuyDate().total)
   const searchRef = useRef(null)
 
-  usePortfolioMarketRefresh()
+  usePortfolioMarketRefresh(activeTab)
 
   useEffect(() => {
     backfillTransactionsFromHoldings()

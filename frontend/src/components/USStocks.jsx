@@ -19,6 +19,9 @@ import HoldingsSubTabs from './HoldingsSubTabs'
 import IrrTable from './IrrTable'
 import MarketDataTable from './MarketDataTable'
 import HoldingsPnlChart from './HoldingsPnlChart'
+import HoldingsDataIssue from './HoldingsDataIssue'
+import { getHoldingsMarketDataStatus } from '../utils/marketDataStatus'
+import { useHoldingsAutoRefresh } from '../hooks/useHoldingsAutoRefresh'
 import { useWindowedXirr } from '../hooks/useWindowedXirr'
 import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
 import { xirrUnavailableHint } from '../utils/holdingTabMessages'
@@ -48,6 +51,7 @@ function buildStockSubtitle(count) {
 export default function USStocks({ showToast, onOpenTransactions }) {
   const { stocks, loading, lastUpdated, usdInr, addStock, removeStock, updateStock, refreshPrices } =
     useUSStocks()
+  useHoldingsAutoRefresh(refreshPrices, stocks.length > 0)
 
   const [addCategory, setAddCategory] = useState(null)
   const [editStock, setEditStock] = useState(null)
@@ -57,6 +61,8 @@ export default function USStocks({ showToast, onOpenTransactions }) {
   const [showInr, setShowInr] = useState(false)
   const [subTab, setSubTab] = useState('basic')
   const [holdingFilter, setHoldingFilter] = useState('current')
+  const [irrRefreshKey, setIrrRefreshKey] = useState(0)
+  const [marketRefreshKey, setMarketRefreshKey] = useState(0)
 
   const transactions = useMemo(() => storage.getTransactions(), [stocks])
   const pastHoldings = useMemo(
@@ -69,6 +75,22 @@ export default function USStocks({ showToast, onOpenTransactions }) {
   const stockTableHoldings = useMemo(() => partition.stockBucket, [partition.stockBucket])
 
   const totals = useMemo(() => calcTotals(stocks), [stocks])
+  const marketQuoteStatus = useMemo(
+    () => getHoldingsMarketDataStatus(stocks, 'usStock'),
+    [stocks]
+  )
+  const marketDataStatus = useMemo(() => {
+    if (!marketQuoteStatus.ready) return marketQuoteStatus
+    if (stocks.length > 0 && showInr && !usdInr) {
+      return {
+        ready: false,
+        level: 'error',
+        code: 'usd_inr_missing',
+        assetType: 'usStock',
+      }
+    }
+    return marketQuoteStatus
+  }, [stocks, showInr, usdInr, marketQuoteStatus])
   const totalDayChange = useMemo(() => {
     let sum = 0
     let hasAny = false
@@ -85,11 +107,11 @@ export default function USStocks({ showToast, onOpenTransactions }) {
     () => calcRealizedGain(storage.getTransactions(), 'usStock'),
     [stocks]
   )
-  const { windowedXirr, windowedLoading } = useWindowedXirr(
+  const { windowedXirr, windowedLoading, windowedError } = useWindowedXirr(
     stocks,
     'usStock',
     transactions,
-    { usdInr, enabled: subTab === 'irr' }
+    { usdInr, enabled: subTab === 'irr', refreshKey: irrRefreshKey }
   )
 
   const xirrById = useMemo(
@@ -137,12 +159,20 @@ export default function USStocks({ showToast, onOpenTransactions }) {
     showToast(`${deleteStock.symbol} removed`, 'info')
   }, [deleteStock, removeStock, showToast])
 
-  const handleRefresh = useCallback(async () => {
-    await refreshPrices()
-    showToast('Prices refreshed', 'success')
-  }, [refreshPrices, showToast])
+  const handleRetryRefresh = useCallback(() => {
+    refreshPrices()
+  }, [refreshPrices])
 
-  const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
+  const handleIrrRetry = useCallback(async () => {
+    await refreshPrices()
+    setIrrRefreshKey((k) => k + 1)
+  }, [refreshPrices])
+
+  const handleMarketRetry = useCallback(async () => {
+    await refreshPrices()
+    setMarketRefreshKey((k) => k + 1)
+  }, [refreshPrices])
+
   const hasAnyHoldings = stocks.length > 0 || pastHoldings.length > 0
   const pnlClr = totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'text-gain' : 'text-loss') : ''
   const fmtPrice = showInr && usdInr ? (p) => formatINR(p * usdInr) : formatUSD
@@ -172,15 +202,7 @@ export default function USStocks({ showToast, onOpenTransactions }) {
           </div>
         </div>
         <div className="section-header-right">
-          <LiveBadge lastUpdated={lastUpdated} />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleRefresh}
-            disabled={loading || !stocks.length}
-          >
-            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh Prices'}
-          </button>
+          <LiveBadge lastUpdated={lastUpdated} loading={loading} />
           {usdInr && stocks.length > 0 && (
             <button
               type="button"
@@ -290,13 +312,14 @@ export default function USStocks({ showToast, onOpenTransactions }) {
                 filtered={filteredCount}
               />
 
-              {allPricesNull && !loading && holdingFilter !== 'past' && (
-                <div className="prices-unavailable">
-                  <span>Prices unavailable</span>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleRefresh}>
-                    ↻ Retry
-                  </button>
-                </div>
+              {!loading && holdingFilter !== 'past' && (
+                <HoldingsDataIssue
+                  assetType="usStock"
+                  status={marketDataStatus}
+                  context="holdings"
+                  onRetry={handleRetryRefresh}
+                  loading={loading}
+                />
               )}
 
               {holdingFilter === 'past' && (
@@ -440,21 +463,56 @@ export default function USStocks({ showToast, onOpenTransactions }) {
           )}
 
           {subTab === 'irr' && (
+            <>
+            <HoldingsDataIssue
+              assetType="usStock"
+              status={
+                marketQuoteStatus.code === 'all_missing' || marketQuoteStatus.code === 'partial_missing'
+                  ? marketQuoteStatus
+                  : { ready: true }
+              }
+              context="irr"
+              onRetry={handleIrrRetry}
+              loading={loading}
+            />
             <IrrTable
               holdings={stocks}
               assetType="usStock"
               windowedXirr={windowedXirr}
               loading={windowedLoading}
+              loadError={windowedError}
+              onRetry={handleIrrRetry}
               formatPrice={fmtPrice}
               getQty={(h) => h.qty}
               getLabel={(h) => h.symbol}
               getPrice={(h) => h.currentPrice}
               usdInr={usdInr}
             />
+            </>
           )}
 
           {subTab === 'market' && (
-            <MarketDataTable holdings={stocks} assetType="usStock" formatPrice={fmtPrice} />
+            <>
+            <HoldingsDataIssue
+              assetType="usStock"
+              status={
+                marketQuoteStatus.code === 'all_missing' || marketQuoteStatus.code === 'partial_missing'
+                  ? marketQuoteStatus
+                  : { ready: true }
+              }
+              context="market"
+              onRetry={handleMarketRetry}
+              loading={loading}
+            />
+            <MarketDataTable
+              holdings={stocks}
+              assetType="usStock"
+              formatPrice={fmtPrice}
+              onRetry={handleMarketRetry}
+              quoteRefreshKey={marketRefreshKey}
+              loading={loading}
+            />
+            </>
           )}
 
           {subTab === 'pnl' && (
@@ -463,6 +521,9 @@ export default function USStocks({ showToast, onOpenTransactions }) {
               assetType="usStock"
               liveCurrentValue={showInr && usdInr ? liveCurrentInr : totals.totalCurrent}
               liveInvestedValue={showInr && usdInr ? liveInvestedInr : totals.totalInvested}
+              marketDataStatus={marketDataStatus}
+              onRetry={handleRetryRefresh}
+              loading={loading}
               usdInr={showInr ? usdInr : null}
               currency={showInr && usdInr ? 'INR' : 'USD'}
             />

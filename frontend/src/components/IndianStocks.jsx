@@ -37,6 +37,9 @@ import ExchangeToggle from './ExchangeToggle'
 import IrrTable from './IrrTable'
 import MarketDataTable from './MarketDataTable'
 import HoldingsPnlChart from './HoldingsPnlChart'
+import HoldingsDataIssue from './HoldingsDataIssue'
+import { getHoldingsMarketDataStatus } from '../utils/marketDataStatus'
+import { useHoldingsAutoRefresh } from '../hooks/useHoldingsAutoRefresh'
 import { useWindowedXirr } from '../hooks/useWindowedXirr'
 import { useIndianExchangeQuotes } from '../hooks/useIndianExchangeQuotes'
 import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
@@ -219,6 +222,7 @@ function EmptyState({ onAdd }) {
 export default function IndianStocks({ showToast, onOpenTransactions }) {
   const { stocks, loading, lastUpdated, addStock, removeStock, updateStock, refreshPrices } =
     useIndianStocks()
+  useHoldingsAutoRefresh(refreshPrices, stocks.length > 0)
 
   const [showAdd, setShowAdd] = useState(false)
   const [editStock, setEditStock] = useState(null)
@@ -227,6 +231,8 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
   const [filter, setFilter] = useState('')
   const [subTab, setSubTab] = useState('basic')
   const [holdingFilter, setHoldingFilter] = useState('current')
+  const [irrRefreshKey, setIrrRefreshKey] = useState(0)
+  const [marketRefreshKey, setMarketRefreshKey] = useState(0)
   const [marketExchange, setMarketExchange] = useState(() => {
     try {
       return localStorage.getItem('pt_indian_market_exchange') || 'NSE'
@@ -272,16 +278,20 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
   )
 
   const totals = useMemo(() => calcTotals(displayStocks), [displayStocks])
+  const marketDataStatus = useMemo(
+    () => getHoldingsMarketDataStatus(stocks, 'indianStock'),
+    [stocks]
+  )
   const totalTodayPnl = useMemo(() => sumTodayPnl(displayStocks), [displayStocks])
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'indianStock'),
     [stocks]
   )
-  const { windowedXirr, windowedLoading } = useWindowedXirr(
+  const { windowedXirr, windowedLoading, windowedError } = useWindowedXirr(
     displayStocks,
     'indianStock',
     transactions,
-    { exchange: marketExchange, enabled: subTab === 'irr' }
+    { exchange: marketExchange, enabled: subTab === 'irr', refreshKey: irrRefreshKey }
   )
 
   const xirrById = useMemo(
@@ -328,13 +338,20 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
     showToast(`${deleteStock.symbol} removed`, 'info')
   }, [deleteStock, removeStock, showToast])
 
-  const handleRefresh = useCallback(async () => {
-    await refreshPrices()
-    showToast('Prices refreshed', 'success')
-  }, [refreshPrices, showToast])
+  const handleRetryRefresh = useCallback(() => {
+    refreshPrices()
+  }, [refreshPrices])
 
-  const allPricesNull =
-    displayStocks.length > 0 && displayStocks.every((s) => s.currentPrice === null)
+  const handleIrrRetry = useCallback(async () => {
+    await refreshPrices()
+    setIrrRefreshKey((k) => k + 1)
+  }, [refreshPrices])
+
+  const handleMarketRetry = useCallback(async () => {
+    await refreshPrices()
+    setMarketRefreshKey((k) => k + 1)
+  }, [refreshPrices])
+
   const hasAnyHoldings = stocks.length > 0 || pastHoldings.length > 0
 
   return (
@@ -347,14 +364,7 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
           </div>
         </div>
         <div className="section-header-right">
-          <LiveBadge lastUpdated={lastUpdated} />
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleRefresh}
-            disabled={loading || !stocks.length}
-          >
-            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh Prices'}
-          </button>
+          <LiveBadge lastUpdated={lastUpdated} loading={loading} />
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
             + Add Stock
           </button>
@@ -413,13 +423,14 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
                 inputRef={filterRef}
               />
 
-              {allPricesNull && !loading && holdingFilter !== 'past' && (
-                <div className="prices-unavailable">
-                  <span>Prices unavailable</span>
-                  <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>
-                    Retry
-                  </button>
-                </div>
+              {!loading && holdingFilter !== 'past' && (
+                <HoldingsDataIssue
+                  assetType="indianStock"
+                  status={marketDataStatus}
+                  context="holdings"
+                  onRetry={handleRetryRefresh}
+                  loading={loading}
+                />
               )}
 
               <div className="table-scroll">
@@ -501,25 +512,47 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
           )}
 
           {subTab === 'irr' && (
+            <>
+            <HoldingsDataIssue
+              assetType="indianStock"
+              status={marketDataStatus.code === 'all_missing' ? marketDataStatus : { ready: true }}
+              context="irr"
+              onRetry={handleRetryRefresh}
+              loading={loading}
+            />
             <IrrTable
               holdings={displayStocks}
               assetType="indianStock"
               windowedXirr={windowedXirr}
               loading={windowedLoading}
+              loadError={windowedError}
+              onRetry={handleIrrRetry}
               formatPrice={formatINR}
               getQty={(h) => h.qty}
               getLabel={(h) => h.symbol}
               getPrice={(h) => h.currentPrice}
             />
+            </>
           )}
 
           {subTab === 'market' && (
+            <>
+            <HoldingsDataIssue
+              assetType="indianStock"
+              status={marketDataStatus.code === 'all_missing' ? marketDataStatus : { ready: true }}
+              context="market"
+              onRetry={handleRetryRefresh}
+              loading={loading}
+            />
             <MarketDataTable
               holdings={displayStocks}
               assetType="indianStock"
               formatPrice={formatINR}
               exchange={marketExchange}
+              onRetry={handleMarketRetry}
+              quoteRefreshKey={marketRefreshKey}
             />
+            </>
           )}
 
           {subTab === 'pnl' && (
@@ -528,6 +561,9 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
               assetType="indianStock"
               liveCurrentValue={totals.totalCurrent}
               liveInvestedValue={totals.totalInvested}
+              marketDataStatus={marketDataStatus}
+              onRetry={handleRetryRefresh}
+              loading={loading}
             />
           )}
 

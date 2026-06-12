@@ -22,6 +22,9 @@ import HoldingsSubTabs from './HoldingsSubTabs'
 import IrrTable from './IrrTable'
 import MarketDataTable from './MarketDataTable'
 import HoldingsPnlChart from './HoldingsPnlChart'
+import HoldingsDataIssue from './HoldingsDataIssue'
+import { getHoldingsMarketDataStatus } from '../utils/marketDataStatus'
+import { useHoldingsAutoRefresh } from '../hooks/useHoldingsAutoRefresh'
 import { useWindowedXirr } from '../hooks/useWindowedXirr'
 import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
 import { currentValueHint } from '../utils/holdingTabMessages'
@@ -186,6 +189,7 @@ function EmptyState({ onAdd }) {
 export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransactions }) {
   const { funds, loading, lastUpdated, addFund, removeFund, updateFund, refreshNAVs } =
     useMutualFunds()
+  useHoldingsAutoRefresh(refreshNAVs, funds.length > 0)
 
   const [showAdd, setShowAdd] = useState(false)
   const [editFund, setEditFund] = useState(null)
@@ -194,6 +198,8 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
   const [filter, setFilter] = useState('')
   const [subTab, setSubTab] = useState('basic')
   const [holdingFilter, setHoldingFilter] = useState('current')
+  const [irrRefreshKey, setIrrRefreshKey] = useState(0)
+  const [marketRefreshKey, setMarketRefreshKey] = useState(0)
 
   const transactions = useMemo(() => storage.getTransactions(), [funds])
   const pastHoldings = useMemo(
@@ -222,16 +228,20 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
   )
 
   const totals = useMemo(() => calcTotals(funds), [funds])
+  const marketDataStatus = useMemo(
+    () => getHoldingsMarketDataStatus(funds, 'mutualFund'),
+    [funds]
+  )
   const totalTodayPnl = useMemo(() => sumMfTodayPnl(funds), [funds])
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'mutualFund'),
     [funds]
   )
-  const { windowedXirr, windowedLoading } = useWindowedXirr(
+  const { windowedXirr, windowedLoading, windowedError } = useWindowedXirr(
     funds,
     'mutualFund',
     transactions,
-    { enabled: subTab === 'irr' }
+    { enabled: subTab === 'irr', refreshKey: irrRefreshKey }
   )
 
   const xirrById = useMemo(
@@ -278,12 +288,20 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
     showToast('Fund removed', 'info')
   }, [deleteFund, removeFund, showToast])
 
-  const handleRefresh = useCallback(async () => {
-    await refreshNAVs()
-    showToast('NAVs refreshed', 'success')
-  }, [refreshNAVs, showToast])
+  const handleRetryRefresh = useCallback(() => {
+    refreshNAVs()
+  }, [refreshNAVs])
 
-  const allNavNull = funds.length > 0 && funds.every((f) => f.currentNAV === null)
+  const handleIrrRetry = useCallback(async () => {
+    await refreshNAVs()
+    setIrrRefreshKey((k) => k + 1)
+  }, [refreshNAVs])
+
+  const handleMarketRetry = useCallback(async () => {
+    await refreshNAVs()
+    setMarketRefreshKey((k) => k + 1)
+  }, [refreshNAVs])
+
   const hasAnyHoldings = funds.length > 0 || pastHoldings.length > 0
 
   return (
@@ -296,14 +314,7 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
           </div>
         </div>
         <div className="section-header-right">
-          <LiveBadge lastUpdated={lastUpdated} />
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleRefresh}
-            disabled={loading || !funds.length}
-          >
-            {loading ? <><span className="btn-spinner" aria-hidden="true" />Refreshing...</> : '↻ Refresh NAVs'}
-          </button>
+          <LiveBadge lastUpdated={lastUpdated} loading={loading} />
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
             + Add Fund
           </button>
@@ -357,11 +368,14 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
                 filtered={filtered.length}
               />
 
-              {allNavNull && !loading && holdingFilter !== 'past' && (
-                <div className="prices-unavailable">
-                  <span>NAVs unavailable</span>
-                  <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>↻ Retry</button>
-                </div>
+              {!loading && holdingFilter !== 'past' && (
+                <HoldingsDataIssue
+                  assetType="mutualFund"
+                  status={marketDataStatus}
+                  context="holdings"
+                  onRetry={handleRetryRefresh}
+                  loading={loading}
+                />
               )}
 
               <div className="table-scroll">
@@ -439,20 +453,54 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
           )}
 
           {subTab === 'irr' && (
+            <>
+            <HoldingsDataIssue
+              assetType="mutualFund"
+              status={
+                marketDataStatus.code === 'all_missing' || marketDataStatus.code === 'partial_missing'
+                  ? marketDataStatus
+                  : { ready: true }
+              }
+              context="irr"
+              onRetry={handleIrrRetry}
+              loading={loading}
+            />
             <IrrTable
               holdings={funds}
               assetType="mutualFund"
               windowedXirr={windowedXirr}
               loading={windowedLoading}
+              loadError={windowedError}
+              onRetry={handleIrrRetry}
               formatPrice={formatINR}
               getQty={(h) => h.units}
               getLabel={(h) => h.schemeName}
               getPrice={(h) => h.currentNAV}
             />
+            </>
           )}
 
           {subTab === 'market' && (
-            <MarketDataTable holdings={funds} assetType="mutualFund" />
+            <>
+            <HoldingsDataIssue
+              assetType="mutualFund"
+              status={
+                marketDataStatus.code === 'all_missing' || marketDataStatus.code === 'partial_missing'
+                  ? marketDataStatus
+                  : { ready: true }
+              }
+              context="market"
+              onRetry={handleMarketRetry}
+              loading={loading}
+            />
+            <MarketDataTable
+              holdings={funds}
+              assetType="mutualFund"
+              onRetry={handleMarketRetry}
+              quoteRefreshKey={marketRefreshKey}
+              loading={loading}
+            />
+            </>
           )}
 
           {subTab === 'pnl' && (
@@ -461,6 +509,9 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
               assetType="mutualFund"
               liveCurrentValue={totals.totalCurrent}
               liveInvestedValue={totals.totalInvested}
+              marketDataStatus={marketDataStatus}
+              onRetry={handleRetryRefresh}
+              loading={loading}
             />
           )}
 

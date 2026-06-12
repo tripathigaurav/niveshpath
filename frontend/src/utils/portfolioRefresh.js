@@ -2,9 +2,38 @@
  * Shared portfolio market-data refresh (Indian + US + MF).
  */
 
+import { storage } from './storage'
 import { isIndianMarketOpen, isUsMarketOpen } from './marketHours'
 
 /** @typedef {'indian' | 'us' | 'mf'} RefreshCategory */
+
+/** @type {Record<string, RefreshCategory | undefined>} */
+export const TAB_REFRESH_CATEGORY = {
+  indianStocks: 'indian',
+  usStocks: 'us',
+  mutualFunds: 'mf',
+}
+
+export function getCategoryForTab(tab) {
+  return TAB_REFRESH_CATEGORY[tab]
+}
+
+export function markMarketRefreshed(category) {
+  const settings = storage.getSettings()
+  const lastMarketRefresh = {
+    indian: null,
+    us: null,
+    mf: null,
+    ...settings.lastMarketRefresh,
+    [category]: Date.now(),
+  }
+  storage.setSettings({ ...settings, lastMarketRefresh })
+}
+
+export function getMarketRefreshedAt(category) {
+  const ts = storage.getSettings().lastMarketRefresh?.[category]
+  return ts ? new Date(ts) : null
+}
 
 export function portfolioNeedsPriceRefresh({ indianStocks = [], usStocks = [], mutualFunds = [] }) {
   return (
@@ -19,15 +48,37 @@ export function portfolioHasMarketHoldings({ indianStocks = [], usStocks = [], m
 }
 
 /**
- * Categories to refresh on the auto-refresh timer (market hours only).
- * @param {{ indianStocks?: unknown[], usStocks?: unknown[] }} holdings
+ * Categories to refresh on the auto-refresh timer.
+ * Stocks refresh during market hours, or while their tab / dashboard is open.
+ * MF NAVs refresh while the MF tab or dashboard is open (NAV publishes once daily).
+ * @param {{ indianStocks?: unknown[], usStocks?: unknown[], mutualFunds?: unknown[] }} holdings
+ * @param {Date} [now]
+ * @param {string} [activeTab]
  * @returns {RefreshCategory[]}
  */
-export function getScheduledRefreshCategories(holdings, now = new Date()) {
+export function getScheduledRefreshCategories(holdings, now = new Date(), activeTab = null) {
   /** @type {RefreshCategory[]} */
   const cats = []
-  if (holdings.indianStocks?.length && isIndianMarketOpen(now)) cats.push('indian')
-  if (holdings.usStocks?.length && isUsMarketOpen(now)) cats.push('us')
+  const onDashboard = activeTab === 'dashboard'
+  const onIndian = activeTab === 'indianStocks'
+  const onUs = activeTab === 'usStocks'
+  const onMf = activeTab === 'mutualFunds'
+
+  if (
+    holdings.indianStocks?.length &&
+    (isIndianMarketOpen(now) || onIndian || onDashboard)
+  ) {
+    cats.push('indian')
+  }
+  if (
+    holdings.usStocks?.length &&
+    (isUsMarketOpen(now) || onUs || onDashboard)
+  ) {
+    cats.push('us')
+  }
+  if (holdings.mutualFunds?.length && (onMf || onDashboard)) {
+    cats.push('mf')
+  }
   return cats
 }
 

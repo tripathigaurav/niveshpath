@@ -37,6 +37,7 @@ export async function cachePrices(quotes) {
     await tx.store.put({
       symbol,
       price: data.price,
+      previousClose: data.previousClose ?? null,
       dayChange: data.dayChange ?? null,
       dayChangePct: data.dayChangePct ?? null,
       open: data.open ?? null,
@@ -106,4 +107,17 @@ export async function getHistoricalPricesForSymbol(symbol) {
   const db = await getDb()
   const all = await db.getAllFromIndex(HISTORICAL_STORE, 'symbol', symbol)
   return all.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Latest cached LTP on or before `date` (ISO YYYY-MM-DD). */
+export async function getNearestHistoricalPrice(symbol, date) {
+  const target = `${date}`.slice(0, 10)
+  const rows = await getHistoricalPricesForSymbol(symbol)
+  let best = null
+  for (const row of rows) {
+    if (!row?.date || row.price == null) continue
+    if (row.date > target) continue
+    if (!best || row.date > best.date) best = row
+  }
+  return best?.price ?? null
 }

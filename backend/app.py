@@ -68,6 +68,48 @@ _cache_lock = threading.Lock()
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
+def _enrich_ohlc_from_history(sym: str, result: dict) -> dict:
+    """Fill open / day range / 52-week range when fast_info is sparse (common after hours)."""
+    if result.get("price") is None:
+        return result
+    need = (
+        result.get("open") is None
+        or result.get("dayHigh") is None
+        or result.get("yearHigh") is None
+        or result.get("yearLow") is None
+    )
+    if not need:
+        return result
+    try:
+        hist = yf.Ticker(sym).history(period="1y", auto_adjust=True)
+        if hist is None or hist.empty:
+            return result
+        if result.get("yearHigh") is None:
+            result["yearHigh"] = round(float(hist["High"].max()), 4)
+        if result.get("yearLow") is None:
+            result["yearLow"] = round(float(hist["Low"].min()), 4)
+        last = hist.iloc[-1]
+        if result.get("open") is None:
+            result["open"] = round(float(last["Open"]), 4)
+        if result.get("dayHigh") is None:
+            result["dayHigh"] = round(float(last["High"]), 4)
+        if result.get("dayLow") is None:
+            result["dayLow"] = round(float(last["Low"]), 4)
+        if result.get("previousClose") is None and len(hist) >= 2:
+            result["previousClose"] = round(float(hist["Close"].iloc[-2]), 4)
+            price = result.get("price")
+            if price is not None:
+                day_change = round(price - result["previousClose"], 4)
+                result["dayChange"] = day_change
+                if result["previousClose"]:
+                    result["dayChangePct"] = round(
+                        (day_change / result["previousClose"]) * 100, 2
+                    )
+    except Exception:
+        pass
+    return result
+
+
 def fetch_ticker_data(symbol: str) -> dict:
     """Return price, previousClose, dayChange, dayChangePct for a ticker.
 
@@ -126,6 +168,8 @@ def fetch_ticker_data(symbol: str) -> dict:
             }
 
     result = _query(symbol)
+    if result["price"] is not None:
+        result = _enrich_ohlc_from_history(symbol, result)
 
     # Fallback: NSE (.NS) → BSE (.BO) when price is missing
     if result["price"] is None and symbol.upper().endswith(".NS"):
@@ -135,7 +179,7 @@ def fetch_ticker_data(symbol: str) -> dict:
             # Return the BSE data but keep the originally-requested symbol in the key
             fallback["symbol"] = symbol
             fallback["_source"] = "BSE"
-            return fallback
+            return _enrich_ohlc_from_history(bse_symbol, fallback)
 
     return result
 
@@ -251,7 +295,7 @@ def get_corporate_actions():
 
 
 @app.route("/api/stock/history-price", methods=["GET"])
-@limiter.limit("20 per minute")
+@limiter.limit("60 per minute")
 def get_stock_history_price():
     """Return the closing price of a stock on a specific date (or nearest available day).
     Used for Section 112A grandfathering (FMV on Jan 31 2018).
@@ -406,6 +450,24 @@ def search_mf():
     return jsonify(results)
 
 
+def _amfi_nav_on_day(code, day):
+    """Return scheme NAV from AMFI history report for one calendar day."""
+    amfi_date = day.strftime("%d-%b-%Y")
+    url = (
+        f"https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx"
+        f"?mf=0&tp=1&frmdt={amfi_date}&todt={amfi_date}"
+    )
+    resp = requests.get(url, timeout=REQUEST_TIMEOUT)
+    for line in resp.text.splitlines():
+        parts = line.strip().split(";")
+        if len(parts) >= 6 and parts[0].strip() == code:
+            try:
+                return round(float(parts[4].strip()), 4)
+            except ValueError:
+                continue
+    return None
+
+
 @app.route("/api/mf/historical-nav", methods=["GET"])
 def get_historical_nav():
     code = request.args.get("scheme_code", "").strip()
@@ -415,21 +477,24 @@ def get_historical_nav():
     if not _SCHEME_CODE_RE.match(code):
         return jsonify({"error": "scheme_code must be numeric (max 10 digits)"}), 400
     try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        amfi_date = dt.strftime("%d-%b-%Y")
-        url = (
-            f"https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx"
-            f"?mf=0&tp=1&frmdt={amfi_date}&todt={amfi_date}"
-        )
-        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
-        for line in resp.text.splitlines():
-            parts = line.strip().split(";")
-            if len(parts) >= 6 and parts[0].strip() == code:
-                try:
-                    nav_val = float(parts[4].strip())
-                    return jsonify({"schemeCode": code, "nav": nav_val, "date": date_str})
-                except ValueError:
-                    pass
+        target = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "date must be YYYY-MM-DD"}), 400
+
+    try:
+        # Exact day, then nearest trading day within ±14 days (weekends / AMFI gaps).
+        for offset in [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -7, 7, -10, 10, -14, 14]:
+            try_day = target + timedelta(days=offset)
+            nav_val = _amfi_nav_on_day(code, try_day)
+            if nav_val is not None:
+                actual = try_day.isoformat()
+                return jsonify({
+                    "schemeCode": code,
+                    "nav": nav_val,
+                    "date": actual,
+                    "requestedDate": date_str,
+                    "actualDate": actual,
+                })
         return jsonify({"error": "NAV not found for that date"}), 404
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500

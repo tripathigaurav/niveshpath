@@ -1,7 +1,13 @@
 import { useMemo, useCallback } from 'react'
 import { formatXirrDisplay } from '../utils/xirrMetrics'
 import { pnlColorClass } from '../utils/pnl'
-import { irrFootnote, irrInsufficientTooltip } from '../utils/holdingTabMessages'
+import {
+  irrFootnote,
+  irrInsufficientTooltip,
+  irrWindowedColumnsHint,
+  irrWindowedUnavailableMessage,
+} from '../utils/holdingTabMessages'
+import { isWindowedIrrIncomplete } from '../utils/xirrWindowed'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import SkeletonRows from './SkeletonRows'
@@ -26,6 +32,8 @@ export default function IrrTable({
   assetType,
   windowedXirr,
   loading,
+  loadError = null,
+  onRetry = null,
   formatPrice,
   getQty,
   getLabel,
@@ -79,7 +87,36 @@ export default function IrrTable({
     `irr-${assetType}`
   )
 
+  const windowedIncomplete = useMemo(
+    () => !loading && isWindowedIrrIncomplete(windowedXirr, holdings),
+    [loading, windowedXirr, holdings]
+  )
+
   return (
+    <div className="irr-table-wrap">
+      {!loading && windowedIncomplete && (
+        <div className="holdings-data-issue holdings-data-issue--info irr-windowed-notice" role="status">
+          <div className="holdings-data-issue-body">
+            <span className="holdings-data-issue-icon" aria-hidden="true">i</span>
+            <div className="holdings-data-issue-text">
+              <strong className="holdings-data-issue-title">Windowed IRR needs historical prices</strong>
+              <p className="holdings-data-issue-message">
+                {irrWindowedUnavailableMessage(assetType)}
+              </p>
+            </div>
+          </div>
+          {onRetry && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm holdings-data-issue-retry"
+              onClick={onRetry}
+            >
+              ↻ Retry
+            </button>
+          )}
+        </div>
+      )}
+      <p className="irr-columns-hint text-muted-sm">{irrWindowedColumnsHint(assetType)}</p>
     <div className="table-scroll">
       <table className="holdings-table holdings-table--irr">
         <caption className="sr-only">Windowed IRR by holding</caption>
@@ -131,11 +168,17 @@ export default function IrrTable({
           )}
         </tbody>
       </table>
+      {!loading && loadError && !windowedIncomplete && (
+        <p className="irr-footnote irr-footnote--warn text-muted-sm" role="status">
+          {loadError} Windowed columns need recent price history — tap Retry on this tab.
+        </p>
+      )}
       {!loading && (
         <p className="irr-footnote text-muted-sm">
           {irrFootnote(assetType, { usdInr })}
         </p>
       )}
+    </div>
     </div>
   )
 }

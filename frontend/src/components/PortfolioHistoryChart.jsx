@@ -15,7 +15,12 @@ import {
   resolveRangePoints,
 } from '../utils/portfolioChartData'
 import { buildPortfolioValueBreakdown } from '../utils/portfolioValueBreakdown'
+import {
+  getPortfolioMarketDataStatus,
+  portfolioHasMarketHoldings,
+} from '../utils/marketDataStatus'
 import { storage } from '../utils/storage'
+import HoldingsDataIssue from './HoldingsDataIssue'
 import PortfolioValueChart from './PortfolioValueChart'
 
 /**
@@ -113,6 +118,46 @@ export default function PortfolioHistoryChart({
     })
   }, [holdings, investedValue, liveCurrentValue, todayPnl])
 
+  const portfolioMarketStatus = useMemo(
+    () => (holdings ? getPortfolioMarketDataStatus(holdings) : { ready: true, issues: [] }),
+    [holdings]
+  )
+
+  const chartBlocked =
+    !loading &&
+    holdings &&
+    portfolioHasMarketHoldings(holdings) &&
+    liveCurrentValue == null
+
+  const partialWarning = useMemo(() => {
+    if (!holdings || chartBlocked || portfolioMarketStatus.ready) return null
+    return portfolioMarketStatus.issues.find((i) => i.code === 'partial_missing') ?? null
+  }, [holdings, chartBlocked, portfolioMarketStatus])
+
+  if (chartBlocked) {
+    const primary = portfolioMarketStatus.issues[0] || {
+      ready: false,
+      level: 'error',
+      code: 'all_missing',
+      assetType: 'indianStock',
+    }
+    return (
+      <div className="pvc-card">
+        <div className="pvc-header">
+          <div className="pvc-header-left">
+            <h3 className="pvc-title">Portfolio Value</h3>
+          </div>
+        </div>
+        <HoldingsDataIssue
+          assetType={primary.assetType || 'indianStock'}
+          status={primary}
+          portfolioIssues={portfolioMarketStatus.issues}
+          context="portfolio"
+        />
+      </div>
+    )
+  }
+
   return (
     <PortfolioValueChart
       points={points}
@@ -124,6 +169,7 @@ export default function PortfolioHistoryChart({
       onViewModeChange={setViewMode}
       loading={loading}
       pricesStale={pricesStale}
+      dataWarning={partialWarning}
       emptyMessage="Add holdings or log buy/sell transactions to see portfolio history."
     />
   )

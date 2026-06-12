@@ -3,7 +3,11 @@ import { calcXirr } from './xirr'
 import { calcIndianStockMetrics, calcUsPnl, calcMfPnl } from './pnl'
 import { calcHoldingXirr } from './xirrMetrics'
 import { qtyOnDate } from './holdingLedger'
-import { getHistoricalPrice, putHistoricalPrice } from './priceCache'
+import {
+  getHistoricalPrice,
+  getNearestHistoricalPrice,
+  putHistoricalPrice,
+} from './priceCache'
 import { indianSymbolForExchange } from './indianExchange'
 
 const TODAY = () => new Date().toISOString().slice(0, 10)
@@ -125,9 +129,24 @@ async function resolveHistoricalPrice(symbol, date, assetType) {
       }
     }
   } catch {
-    return null
+    /* try cache fallback below */
   }
-  return null
+
+  return getNearestHistoricalPrice(symbol, date)
+}
+
+async function mapPool(items, mapper, concurrency = 4) {
+  const out = new Array(items.length)
+  let next = 0
+  async function worker() {
+    while (next < items.length) {
+      const i = next++
+      out[i] = await mapper(items[i])
+    }
+  }
+  const workers = Math.min(concurrency, items.length)
+  await Promise.all(Array.from({ length: workers }, () => worker()))
+  return out
 }
 
 /**
@@ -147,13 +166,13 @@ export async function fetchWindowedXirrData(holdings, assetType, transactions, {
     }
   }
 
-  await Promise.all(
-    [...uniqueLookups].map(async (key) => {
-      const [sym, date] = key.split('|')
-      const price = await resolveHistoricalPrice(sym, date, assetType)
-      priceCache.set(key, price)
-    })
-  )
+  await mapPool([...uniqueLookups], async (key) => {
+    const sep = key.lastIndexOf('|')
+    const sym = key.slice(0, sep)
+    const date = key.slice(sep + 1)
+    const price = await resolveHistoricalPrice(sym, date, assetType)
+    priceCache.set(key, price)
+  })
 
   for (const h of holdings || []) {
     const sym = quoteSymbolForExchange(holdingSymbol(h, assetType), assetType, exchange)
@@ -171,4 +190,51 @@ export async function fetchWindowedXirrData(holdings, assetType, transactions, {
   }
 
   return map
+}
+
+function readIndianExchangePreference() {
+  try {
+    return localStorage.getItem('pt_indian_market_exchange') || 'NSE'
+  } catch {
+    return 'NSE'
+  }
+}
+
+/**
+ * Warm historical price cache after a live quote refresh (helps IRR tab on next open).
+ */
+export async function prefetchWindowedHistoricalPrices(symbols, assetType, { exchange } = {}) {
+  if (!symbols?.length) return
+  const windows = getXirrWindowStartDates()
+  const dates = [windows.irr90, windows.irr365, windows.irrSinceApr]
+  const ex =
+    assetType === 'indianStock' ? exchange || readIndianExchangePreference() : exchange
+  const lookups = new Set()
+
+  for (const sym of symbols) {
+    const q = quoteSymbolForExchange(String(sym), assetType, ex)
+    for (const d of dates) lookups.add(`${q}|${d}`)
+  }
+
+  await mapPool([...lookups], async (key) => {
+    const sep = key.lastIndexOf('|')
+    await resolveHistoricalPrice(key.slice(0, sep), key.slice(sep + 1), assetType)
+  })
+}
+
+/** True when total IRR exists but every windowed column is empty. */
+export function isWindowedIrrIncomplete(windowedXirr, holdings) {
+  if (!holdings?.length || !windowedXirr?.size) return false
+  let anyTotal = false
+  let anyWindowed = false
+  for (const h of holdings) {
+    const irr = windowedXirr.get(h.id)
+    if (!irr) continue
+    if (irr.irrTotal != null) anyTotal = true
+    if (irr.irr90 != null || irr.irr365 != null || irr.irrSinceApr != null) {
+      anyWindowed = true
+      break
+    }
+  }
+  return anyTotal && !anyWindowed
 }

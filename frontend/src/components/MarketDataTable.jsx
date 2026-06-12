@@ -1,76 +1,87 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { api } from '../utils/api'
 import { formatINR } from '../utils/formatters'
 import { formatNavDate } from '../utils/mfNavDisplay'
 import { indianSymbolForExchange } from '../utils/indianExchange'
-import { marketDataFootnote } from '../utils/holdingTabMessages'
+import {
+  marketDataColumnsHint,
+  marketDataFootnote,
+} from '../utils/holdingTabMessages'
+import { isExtendedStockMarketDataMissing, isMfNavHistoryMissing } from '../utils/marketDataStatus'
+import HoldingsDataIssue from './HoldingsDataIssue'
+import { fetchBatchPricesWithFallback, mergeQuoteIntoHolding } from '../utils/priceProvider'
+import { fetchMfNavHistory } from '../utils/mfNavHistory'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
 import SkeletonRows from './SkeletonRows'
 
-function addDays(iso, days) {
-  const d = new Date(`${iso}T12:00:00`)
-  d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
+function enrichHoldingMarketFields(holding) {
+  if (
+    holding.previousClose != null ||
+    holding.currentPrice == null ||
+    holding.dayChange == null
+  ) {
+    return holding
+  }
+  return { ...holding, previousClose: holding.currentPrice - holding.dayChange }
 }
 
 function quoteToMarketFields(quote, holding) {
-  if (!quote) return holding
+  const base = enrichHoldingMarketFields(holding)
+  if (!quote) return base
   return {
-    ...holding,
-    open: quote.open ?? holding.open,
-    dayHigh: quote.dayHigh ?? holding.dayHigh,
-    dayLow: quote.dayLow ?? holding.dayLow,
-    previousClose: quote.previousClose ?? holding.previousClose,
-    yearHigh: quote.yearHigh ?? holding.yearHigh,
-    yearLow: quote.yearLow ?? holding.yearLow,
+    ...mergeQuoteIntoHolding(base, quote),
     _quoteSymbol: quote.symbol,
   }
 }
 
-async function fetchMfNavHistory(schemeCode) {
-  const today = new Date().toISOString().slice(0, 10)
-  const dates = {
-    nav1m: addDays(today, 30),
-    nav3m: addDays(today, 90),
-    nav6m: addDays(today, 180),
+async function mapPool(items, mapper, concurrency = 3) {
+  const out = new Array(items.length)
+  let next = 0
+  async function worker() {
+    while (next < items.length) {
+      const i = next++
+      out[i] = await mapper(items[i], i)
+    }
   }
-  const out = { nav1m: null, nav3m: null, nav6m: null }
-  await Promise.all(
-    Object.entries(dates).map(async ([key, date]) => {
-      try {
-        const res = await api.getHistoricalNav(schemeCode, date)
-        out[key] = res?.nav ?? null
-      } catch {
-        out[key] = null
-      }
-    })
-  )
+  const workers = Math.min(concurrency, items.length)
+  await Promise.all(Array.from({ length: workers }, () => worker()))
   return out
 }
 
-function StockMarketTable({ holdings, formatPrice, assetType, exchange = 'NSE' }) {
+function StockMarketTable({
+  holdings,
+  formatPrice,
+  assetType,
+  exchange = 'NSE',
+  quoteRefreshKey = 0,
+  onRetry,
+  loading = false,
+}) {
   const [quotesById, setQuotesById] = useState({})
   const [loadingQuotes, setLoadingQuotes] = useState(false)
 
   useEffect(() => {
-    if (assetType !== 'indianStock' || !holdings.length) {
+    const needsQuotes = assetType === 'indianStock' || assetType === 'usStock'
+    if (!needsQuotes || !holdings.length) {
       setQuotesById({})
       return undefined
     }
 
     let cancelled = false
     setLoadingQuotes(true)
-    const symbols = holdings.map((h) => indianSymbolForExchange(h.symbol, exchange))
+    const symbols = holdings.map((h) =>
+      assetType === 'indianStock'
+        ? indianSymbolForExchange(h.symbol, exchange)
+        : h.symbol
+    )
 
-    api
-      .getBatchPrices(symbols)
-      .then((results) => {
+    fetchBatchPricesWithFallback(symbols)
+      .then(({ quotes }) => {
         if (cancelled) return
         const next = {}
         holdings.forEach((h, i) => {
           const sym = symbols[i]
-          next[h.id] = results[sym] || null
+          next[h.id] = quotes[sym] || null
         })
         setQuotesById(next)
       })
@@ -84,10 +95,10 @@ function StockMarketTable({ holdings, formatPrice, assetType, exchange = 'NSE' }
     return () => {
       cancelled = true
     }
-  }, [holdings, exchange, assetType])
+  }, [holdings, exchange, assetType, quoteRefreshKey])
 
   const rows = useMemo(() => {
-    if (assetType === 'indianStock') {
+    if (assetType === 'indianStock' || assetType === 'usStock') {
       return holdings.map((h) => quoteToMarketFields(quotesById[h.id], h))
     }
     return holdings
@@ -121,7 +132,12 @@ function StockMarketTable({ holdings, formatPrice, assetType, exchange = 'NSE' }
     sortNamespace
   )
 
-  if (loadingQuotes && assetType === 'indianStock') {
+  const extendedMissing =
+    !loadingQuotes &&
+    isExtendedStockMarketDataMissing(rows) &&
+    rows.some((h) => h.currentPrice != null)
+
+  if (loadingQuotes && (assetType === 'indianStock' || assetType === 'usStock')) {
     return (
       <table className="holdings-table holdings-table--market">
         <tbody>
@@ -132,6 +148,25 @@ function StockMarketTable({ holdings, formatPrice, assetType, exchange = 'NSE' }
   }
 
   return (
+    <>
+      {extendedMissing && (
+        <HoldingsDataIssue
+          assetType={assetType}
+          status={{
+            ready: false,
+            level: 'info',
+            code: 'extended_missing',
+            assetType,
+          }}
+          context="market"
+          onRetry={onRetry}
+          loading={loading || loadingQuotes}
+          className="market-data-notice"
+        />
+      )}
+      <p className="market-data-columns-hint text-muted-sm">
+        {marketDataColumnsHint(assetType)}
+      </p>
     <table className="holdings-table holdings-table--market">
       <caption className="sr-only">Market data for stock holdings</caption>
       <thead>
@@ -170,34 +205,36 @@ function StockMarketTable({ holdings, formatPrice, assetType, exchange = 'NSE' }
         ))}
       </tbody>
     </table>
+    </>
   )
 }
 
-function MfMarketTable({ holdings }) {
+function MfMarketTable({ holdings, onRetry, navRefreshKey = 0, refreshing = false }) {
   const [navHistory, setNavHistory] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    Promise.all(
-      holdings.map(async (f) => {
-        const hist = await fetchMfNavHistory(f.schemeCode)
-        return [f.id, hist]
-      })
-    )
+    setLoadingHistory(true)
+    mapPool(holdings, async (f) => {
+      const hist = await fetchMfNavHistory(f.schemeCode)
+      return [f.id, hist]
+    }, 2)
       .then((pairs) => {
         if (!cancelled) {
           setNavHistory(Object.fromEntries(pairs))
         }
       })
+      .catch(() => {
+        if (!cancelled) setNavHistory({})
+      })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadingHistory(false)
       })
     return () => {
       cancelled = true
     }
-  }, [holdings])
+  }, [holdings, navRefreshKey])
 
   const rows = useMemo(
     () =>
@@ -237,7 +274,10 @@ function MfMarketTable({ holdings }) {
     'market-mf'
   )
 
-  if (loading) {
+  const navHistoryMissing =
+    !loadingHistory && !refreshing && isMfNavHistoryMissing(holdings, navHistory)
+
+  if (loadingHistory) {
     return (
       <table className="holdings-table holdings-table--market">
         <tbody>
@@ -248,6 +288,25 @@ function MfMarketTable({ holdings }) {
   }
 
   return (
+    <>
+      {navHistoryMissing && (
+        <HoldingsDataIssue
+          assetType="mutualFund"
+          status={{
+            ready: false,
+            level: 'info',
+            code: 'extended_missing',
+            assetType: 'mutualFund',
+          }}
+          context="market"
+          onRetry={onRetry}
+          loading={refreshing || loadingHistory}
+          className="market-data-notice"
+        />
+      )}
+      <p className="market-data-columns-hint text-muted-sm">
+        {marketDataColumnsHint('mutualFund')}
+      </p>
     <table className="holdings-table holdings-table--market">
       <caption className="sr-only">NAV history for mutual fund holdings</caption>
       <thead>
@@ -280,6 +339,7 @@ function MfMarketTable({ holdings }) {
         })}
       </tbody>
     </table>
+    </>
   )
 }
 
@@ -288,6 +348,9 @@ export default function MarketDataTable({
   assetType,
   formatPrice = formatINR,
   exchange = 'NSE',
+  onRetry,
+  quoteRefreshKey = 0,
+  loading = false,
 }) {
   if (!holdings.length) {
     return <p className="filter-no-results">No holdings to show</p>
@@ -296,13 +359,21 @@ export default function MarketDataTable({
   return (
     <div className="table-scroll">
       {assetType === 'mutualFund' ? (
-        <MfMarketTable holdings={holdings} />
+        <MfMarketTable
+          holdings={holdings}
+          onRetry={onRetry}
+          navRefreshKey={quoteRefreshKey}
+          refreshing={loading}
+        />
       ) : (
         <StockMarketTable
           holdings={holdings}
           formatPrice={formatPrice}
           assetType={assetType}
           exchange={exchange}
+          onRetry={onRetry}
+          quoteRefreshKey={quoteRefreshKey}
+          loading={loading}
         />
       )}
       <p className="market-data-footnote text-muted-sm">

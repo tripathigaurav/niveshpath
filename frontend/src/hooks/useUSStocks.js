@@ -6,12 +6,14 @@ import { api } from '../utils/api'
 import { logBuy, logSell } from '../utils/transactions'
 import { logAudit } from '../utils/auditTrail'
 import { fetchBatchPricesWithFallback, mergeQuoteIntoHolding } from '../utils/priceProvider'
+import { prefetchWindowedHistoricalPrices } from '../utils/xirrWindowed'
+import { markMarketRefreshed, getMarketRefreshedAt } from '../utils/portfolioRefresh'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useUSStocks() {
   const [stocks, setStocks] = useState(() => storage.getUSStocks().map(normalizeUsHolding))
   const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(() => getMarketRefreshedAt('us'))
   const [pricesStale, setPricesStale] = useState(false)
   const [usdInr, setUsdInr] = useState(() => storage.getSettings().lastUsdInr ?? null)
   const stocksRef = useRef(stocks)
@@ -22,6 +24,8 @@ export function useUSStocks() {
       setStocks(storage.getUSStocks().map(normalizeUsHolding))
       const rate = storage.getSettings().lastUsdInr
       if (rate) setUsdInr(rate)
+      const refreshedAt = getMarketRefreshedAt('us')
+      if (refreshedAt) setLastUpdated(refreshedAt)
     }
     window.addEventListener(PT_DATA_CHANGED, sync)
     return () => window.removeEventListener(PT_DATA_CHANGED, sync)
@@ -136,8 +140,11 @@ export function useUSStocks() {
         storage.setUSStocks(updated)
         return updated
       })
-      setLastUpdated(new Date())
+      const refreshedAt = new Date()
+      markMarketRefreshed('us')
+      setLastUpdated(refreshedAt)
       notifyDataChanged()
+      prefetchWindowedHistoricalPrices(symbols, 'usStock').catch(() => {})
     } finally {
       setLoading(false)
     }

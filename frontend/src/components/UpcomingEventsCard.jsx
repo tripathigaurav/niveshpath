@@ -8,11 +8,11 @@ const EVENTS_WINDOW_DAYS = 30
 
 const EVENTS_ERROR_COPY = {
   offline:
-    'Backend is not reachable. Start it with ./deploy-local.sh (Flask on port 5000).',
+    "Couldn't reach the events feed. Check your connection and try again in a moment.",
   outdated:
-    'Backend is missing the events API — restart Flask (./deploy-local.sh). Per-symbol fallback may still work.',
+    "Events calendar isn't fully available right now. Dividend dates from your holdings may still appear.",
   staticHost:
-    'Live events (dividends, earnings) need the backend API — not available in the hosted demo. Run locally with ./deploy-local.sh for live data.',
+    'Live dividend and earnings calendar is not available in this view. Holdings and prices still work.',
   generic: 'Could not load events. Try again in a moment.',
 }
 

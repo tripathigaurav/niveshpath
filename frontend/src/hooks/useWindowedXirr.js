@@ -4,7 +4,12 @@ import { fetchWindowedXirrData } from '../utils/xirrWindowed'
 /**
  * Load windowed XIRR when enabled (e.g. IRR sub-tab active).
  */
-export function useWindowedXirr(holdings, assetType, transactions, { usdInr, exchange, enabled = false }) {
+export function useWindowedXirr(
+  holdings,
+  assetType,
+  transactions,
+  { usdInr, exchange, enabled = false, refreshKey = 0 } = {}
+) {
   const [data, setData] = useState(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -33,7 +38,7 @@ export function useWindowedXirr(holdings, assetType, transactions, { usdInr, exc
     return () => {
       cancelled = true
     }
-  }, [holdings, assetType, transactions, usdInr, exchange, enabled])
+  }, [holdings, assetType, transactions, usdInr, exchange, enabled, refreshKey])
 
   return { windowedXirr: data, windowedLoading: loading, windowedError: error }
 }

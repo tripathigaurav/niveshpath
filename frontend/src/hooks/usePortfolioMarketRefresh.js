@@ -9,9 +9,10 @@ import {
 } from '../utils/portfolioRefresh'
 
 /**
- * Shared refresh on app load; auto-refresh respects Indian vs US market hours separately.
+ * Shared refresh on app load and on an interval while the app is visible.
+ * Respects Indian vs US market hours; MF NAVs refresh on MF tab / dashboard.
  */
-export function usePortfolioMarketRefresh() {
+export function usePortfolioMarketRefresh(activeTab = 'dashboard') {
   const { stocks: indianStocks, refreshPrices: refreshIndian } = useIndianStocks()
   const { stocks: usStocks, refreshPrices: refreshUs } = useUSStocks()
   const { funds: mutualFunds, refreshNAVs: refreshMf } = useMutualFunds()
@@ -45,9 +46,12 @@ export function usePortfolioMarketRefresh() {
     await refreshCategoriesRef.current(['indian', 'us', 'mf'])
   }, [])
 
+  const activeTabRef = useRef(activeTab)
+  activeTabRef.current = activeTab
+
   const refreshScheduled = useCallback(async () => {
     const h = holdingsRef.current
-    const cats = getScheduledRefreshCategories(h)
+    const cats = getScheduledRefreshCategories(h, new Date(), activeTabRef.current)
     await refreshCategoriesRef.current(cats)
   }, [])
 

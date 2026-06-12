@@ -46,10 +46,13 @@ export function generateDemoSnapshotSeries({
 
 /** Rough INR total from sample holdings (invested + modest mark-up). */
 export function estimateSamplePortfolioValueINR(usdInr = 83) {
-  const indianInvested = 10 * 2450 + 5 * 3800 + 20 * 1650 + 50 * 245 + 40 * 54
-  const usInvestedUSD = 15 * 175 + 8 * 380 + 12 * 420 + 25 * 142
-  const mfInvested = 120.5 * 68.25 + 85.2 * 82.1
-  const otherValue = 525000
+  const indianInvested =
+    10 * 2167 + 5 * 3680 + 20 * 1436 + 50 * 215 + 40 * 51
+  const usInvestedUSD =
+    20 * 142 + 8 * 268 + 12 * 382 + 40 * 145
+  const mfInvested = 120.5 * 72.4 + 85.2 * 78.5 + 45.8 * 58.2
+  const otherValue =
+    537500 + 892000 + 325000 + 528000 + 712000 + 158000 + 108000 + 300000
   const base = indianInvested + usInvestedUSD * usdInr + mfInvested + otherValue
   return Math.round(base * 1.08)
 }

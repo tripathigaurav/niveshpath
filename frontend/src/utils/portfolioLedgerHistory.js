@@ -280,7 +280,12 @@ export function buildCategoryHistoryFromLedger({
       last.invested = liveInvestedValue
     }
   } else {
-    points = points.map((p) => ({ ...p, invested: p.value }))
+    points = points.map((p) => ({
+      ...p,
+      invested: p.value,
+      value: p.value,
+      source: 'ledger',
+    }))
     if (liveCurrentValue != null && points.length) {
       points[points.length - 1].value = Math.round(liveCurrentValue * 100) / 100
     }

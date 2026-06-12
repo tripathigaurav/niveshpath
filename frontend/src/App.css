@@ -706,6 +706,14 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; }
   background: var(--green);
   animation: pulse-dot 2s infinite;
 }
+.live-badge--loading {
+  color: var(--text-3);
+}
+.live-badge-spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -3082,6 +3090,57 @@ tbody td.num { text-align: right; }
 .holdings-pnl-chart-note {
   margin: 0 0 12px;
 }
+.holdings-pnl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.holdings-pnl-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.holdings-pnl-legend-swatch {
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.holdings-pnl-legend-swatch--area {
+  height: 10px;
+  border-radius: 3px;
+}
+.holdings-pnl-legend-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+.holdings-pnl-legend-tag.pos {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+}
+.holdings-pnl-legend-tag.neg {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+}
+.holdings-pnl-chart-shell {
+  min-height: 440px;
+}
+.holdings-pnl-chart .pvc-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  margin-top: 4px;
+  color: var(--text);
+}
+.holdings-pnl-chart .pvc-tooltip-row--pnl.pos { color: #16a34a; font-weight: 600; }
+.holdings-pnl-chart .pvc-tooltip-row--pnl.neg { color: #dc2626; font-weight: 600; }
 .holdings-pnl-chart .pvc-range-bar {
   display: flex;
   flex-wrap: wrap;
@@ -3490,7 +3549,109 @@ tbody td.num { text-align: right; }
   font-size: 13.5px;
 }
 
-/* ── Prices unavailable row ──────────────────────────────────────────────── */
+/* ── Market data issue banners (prices / NAVs missing) ─────────────────────── */
+.holdings-data-issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.holdings-data-issue--error {
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+  color: var(--red);
+}
+.holdings-data-issue--warning {
+  background: color-mix(in srgb, var(--amber, #d97706) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--amber, #d97706) 35%, var(--border));
+  color: var(--text);
+}
+.holdings-data-issue--warning .holdings-data-issue-title {
+  color: var(--amber, #b45309);
+}
+.holdings-data-issue--info {
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--blue) 28%, var(--border));
+  color: var(--text);
+}
+.holdings-data-issue--info .holdings-data-issue-title {
+  color: var(--blue);
+}
+.holdings-data-issue--info .holdings-data-issue-icon {
+  color: var(--blue);
+  font-style: italic;
+  font-weight: 700;
+}
+.irr-table-wrap {
+  margin: 0 24px 16px;
+}
+.irr-windowed-notice {
+  margin: 0 0 12px;
+}
+.irr-columns-hint {
+  margin: 0 0 10px;
+}
+.market-data-notice {
+  margin: 0 24px 12px;
+}
+.market-data-columns-hint {
+  margin: 0 24px 10px;
+}
+.holdings-data-issue-body {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-width: min(100%, 280px);
+}
+.holdings-data-issue-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.holdings-data-issue-text {
+  min-width: 0;
+}
+.holdings-data-issue-title {
+  display: block;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+.holdings-data-issue-message {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.holdings-data-issue--error .holdings-data-issue-message {
+  color: color-mix(in srgb, var(--red) 75%, var(--text));
+}
+.holdings-data-issue-retry {
+  flex-shrink: 0;
+  align-self: center;
+}
+.category-holdings-panel > .holdings-data-issue,
+.us-holdings-panel > .holdings-data-issue,
+.ins-holdings-panel > .holdings-data-issue {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+.holdings-pnl-chart > .holdings-data-issue {
+  margin: 16px 0 0;
+}
+.pvc-card > .holdings-data-issue {
+  margin: 0 0 14px;
+}
+/* legacy alias */
 .prices-unavailable {
   display: flex;
   align-items: center;

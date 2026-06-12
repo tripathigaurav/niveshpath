@@ -2,19 +2,27 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
 import { api } from '../utils/api'
+import { putHistoricalPrice } from '../utils/priceCache'
+import { prefetchMfMarketNavHistory } from '../utils/mfNavHistory'
+import { prefetchWindowedHistoricalPrices } from '../utils/xirrWindowed'
 import { logBuy, logSell } from '../utils/transactions'
 import { logAudit } from '../utils/auditTrail'
+import { markMarketRefreshed, getMarketRefreshedAt } from '../utils/portfolioRefresh'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useMutualFunds() {
   const [funds, setFunds] = useState(() => storage.getMutualFunds())
   const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(() => getMarketRefreshedAt('mf'))
   const fundsRef = useRef(funds)
   useEffect(() => { fundsRef.current = funds }, [funds])
 
   useEffect(() => {
-    const sync = () => setFunds(storage.getMutualFunds())
+    const sync = () => {
+      setFunds(storage.getMutualFunds())
+      const refreshedAt = getMarketRefreshedAt('mf')
+      if (refreshedAt) setLastUpdated(refreshedAt)
+    }
     window.addEventListener(PT_DATA_CHANGED, sync)
     return () => window.removeEventListener(PT_DATA_CHANGED, sync)
   }, [])
@@ -116,10 +124,24 @@ export function useMutualFunds() {
           }
         })
         storage.setMutualFunds(updated)
+        updated.forEach((f) => {
+          if (f.currentNAV != null && f.navDate) {
+            putHistoricalPrice(
+              String(f.schemeCode),
+              `${f.navDate}`.slice(0, 10),
+              f.currentNAV
+            ).catch(() => {})
+          }
+        })
         return updated
       })
-      setLastUpdated(new Date())
+      const refreshedAt = new Date()
+      markMarketRefreshed('mf')
+      setLastUpdated(refreshedAt)
       notifyDataChanged()
+      const schemeCodes = [...new Set(current.map((f) => String(f.schemeCode)))]
+      prefetchWindowedHistoricalPrices(schemeCodes, 'mutualFund').catch(() => {})
+      prefetchMfMarketNavHistory(schemeCodes).catch(() => {})
     } finally {
       setLoading(false)
     }
