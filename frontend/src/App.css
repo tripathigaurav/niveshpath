@@ -2069,6 +2069,48 @@ tbody td.num { text-align: right; }
   margin: 0;
   line-height: 1.45;
 }
+.dash-ins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+}
+.dash-ins-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.dash-ins-type-icon { font-size: 14px; flex-shrink: 0; line-height: 1; }
+.dash-ins-name {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.dash-ins-renewal {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dash-ins-renewal--urgent { color: var(--red); }
+.dash-ins-renewal--soon   { color: var(--orange, #ea7c0f); }
+.dash-ins-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.dash-ins-footer-item { display: flex; align-items: baseline; gap: 5px; }
+.dash-ins-footer-val  { font-size: 13px !important; }
+.dash-ins-sep { color: var(--text-3); font-size: 13px; }
 .dash-cat-card--insurance .dash-cat-val {
   font-size: 16px;
 }
@@ -2904,6 +2946,159 @@ tbody td.num { text-align: right; }
 .category-holdings-panel thead {
   position: static;
 }
+
+/* Holdings sub-tabs (Basic / IRR / Market Data / P&L Trend) */
+.holdings-subtabs {
+  margin: 0 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.subtab-bar-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+.subtab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.subtab-bar-right {
+  flex-shrink: 0;
+  padding-bottom: 6px;
+}
+.exchange-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.exchange-toggle-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.subtab-btn {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.subtab-btn:hover {
+  color: var(--text-1);
+}
+.subtab-btn.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+  font-weight: 600;
+}
+.holding-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.holding-filter-btn {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.holding-filter-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.exchange-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.exchange-toggle-btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.exchange-toggle-btn + .exchange-toggle-btn {
+  border-left: 1px solid var(--border);
+}
+.exchange-toggle-btn.active {
+  background: var(--blue);
+  color: #fff;
+}
+.exchange-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.holdings-table--irr th,
+.holdings-table--market th {
+  white-space: nowrap;
+}
+.holdings-row--past {
+  opacity: 0.92;
+}
+.irr-footnote,
+.market-data-footnote {
+  margin: 12px 24px 16px;
+}
+.holdings-pnl-chart {
+  padding: 0 24px 24px;
+}
+.holdings-pnl-chart--empty {
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-3);
+}
+.holdings-pnl-chart-note {
+  margin: 0 0 12px;
+}
+.holdings-pnl-chart .pvc-range-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.us-past-holdings {
+  margin: 16px 24px 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.us-past-holdings .us-section-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
 /* US holdings — one white panel, three tables inside */
 .us-holdings-panel {
   /* extends .category-holdings-panel */
@@ -3467,6 +3662,16 @@ thead th { min-height: 44px; }
 @media (max-width: 767px) {
   /* Page */
   .page { padding: 12px 12px 40px; }
+
+  .holdings-subtabs {
+    margin: 0 12px 12px;
+  }
+  .subtab-bar-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: 8px;
+  }
 
   /* Navbar: hide center tabs, show hamburger */
   .navbar-center { display: none; }

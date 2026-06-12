@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useIndianStocks, useUSStocks, useMutualFunds, useOtherAssets, useInsurance } from '../hooks/usePortfolio'
-import { summarizeInsurance, formatInsuranceRenewalsLine } from '../utils/insuranceMetrics'
+import { summarizeInsurance, daysUntilRenewal } from '../utils/insuranceMetrics'
 import UpcomingEventsCard from './UpcomingEventsCard'
 import { calcPortfolioXirr, formatXirrDisplay } from '../utils/xirrMetrics'
 import { calculateEquityTaxReport } from '../utils/taxCalculator'
@@ -14,7 +14,7 @@ import {
   sumPortfolioTodayPnl,
   pnlColorClass,
 } from '../utils/pnl'
-import { formatINR, formatUSD, formatChange, formatPct } from '../utils/formatters'
+import { formatINR, formatUSD, formatChange, formatPct, formatDate } from '../utils/formatters'
 import { storage } from '../utils/storage'
 import SummaryBar from './SummaryBar'
 import AllocationDonut from './AllocationDonut'
@@ -170,6 +170,7 @@ function useDashboardPortfolio() {
     usStocks,
     funds,
     assets,
+    policies,
     usdInr,
     inUpdated,
     totals,
@@ -177,7 +178,20 @@ function useDashboardPortfolio() {
   }
 }
 
-function InsuranceCategoryCard({ icon, accent, title, count, summary }) {
+const INS_TYPE_ICON = {
+  health: '🏥', term: '🛡️', ulip: '📈', endowment: '📋',
+  vehicle: '🚗', home: '🏠', travel: '✈️', other: '📄',
+}
+
+function InsuranceCategoryCard({ icon, accent, title, count, summary, policies }) {
+  const sorted = useMemo(() => {
+    return [...(policies || [])].sort((a, b) => {
+      const da = a.renewalDate ? new Date(a.renewalDate).getTime() : Infinity
+      const db = b.renewalDate ? new Date(b.renewalDate).getTime() : Infinity
+      return da - db
+    })
+  }, [policies])
+
   return (
     <div
       className="dash-cat-card dash-cat-card--insurance"
@@ -190,23 +204,36 @@ function InsuranceCategoryCard({ icon, accent, title, count, summary }) {
         </span>
         <span className="dash-cat-count">{count} polic{count !== 1 ? 'ies' : 'y'}</span>
       </div>
-      <div className="dash-cat-body">
-        <div className="dash-cat-row">
-          <span className="dash-cat-label">Total cover</span>
-          <span className="dash-cat-val">
-            {summary.totalCover > 0 ? formatINR(summary.totalCover, true) : '—'}
-          </span>
-        </div>
-        <div className="dash-cat-row">
-          <span className="dash-cat-label">Annual premium</span>
-          <span className="dash-cat-val">
-            {summary.totalPremium > 0 ? formatINR(summary.totalPremium, true) : '—'}
-          </span>
-        </div>
-        <div className="dash-cat-row">
-          <span className="dash-cat-label">Renewals</span>
-          <span className="dash-cat-val">{formatInsuranceRenewalsLine(summary)}</span>
-        </div>
+      <div className="dash-ins-list">
+        {sorted.map((p) => {
+          const days = p.renewalDate ? daysUntilRenewal(p.renewalDate) : null
+          let renewalText = '—'
+          let urgency = ''
+          if (days !== null) {
+            if (days < 0)        { renewalText = 'Overdue';        urgency = ' dash-ins-renewal--urgent' }
+            else if (days <= 30) { renewalText = `${days}d left`;  urgency = ' dash-ins-renewal--urgent' }
+            else if (days <= 90) { renewalText = `${days}d`;       urgency = ' dash-ins-renewal--soon' }
+            else                 { renewalText = formatDate(p.renewalDate) }
+          }
+          return (
+            <div key={p.id} className="dash-ins-row">
+              <span className="dash-ins-type-icon" aria-hidden="true">{INS_TYPE_ICON[p.type] ?? '📄'}</span>
+              <span className="dash-ins-name">{p.name}</span>
+              <span className={`dash-ins-renewal${urgency}`}>{renewalText}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="dash-ins-footer">
+        <span className="dash-ins-footer-item">
+          <span className="dash-cat-label">Cover</span>
+          <span className="dash-cat-val dash-ins-footer-val">{summary.totalCover > 0 ? formatINR(summary.totalCover, true) : '—'}</span>
+        </span>
+        <span className="dash-ins-sep" aria-hidden="true">·</span>
+        <span className="dash-ins-footer-item">
+          <span className="dash-cat-label">Premium</span>
+          <span className="dash-cat-val dash-ins-footer-val">{summary.totalPremium > 0 ? `${formatINR(summary.totalPremium, true)}/yr` : '—'}</span>
+        </span>
       </div>
     </div>
   )
@@ -310,7 +337,7 @@ function DashboardFooter({ lastUpdated, pricesStale }) {
 }
 
 export default function Dashboard() {
-  const { inStocks, usStocks, funds, assets, usdInr, inUpdated, totals: t, pricesStale } =
+  const { inStocks, usStocks, funds, assets, policies, usdInr, inUpdated, totals: t, pricesStale } =
     useDashboardPortfolio()
   const hasInvestments =
     t.counts.indian + t.counts.us + t.counts.mf + t.counts.other > 0
@@ -482,6 +509,7 @@ export default function Dashboard() {
                 {...CATEGORY_META.insurance}
                 count={t.counts.insurance}
                 summary={t.insurance}
+                policies={policies}
               />
             )}
           </div>
@@ -534,10 +562,12 @@ export default function Dashboard() {
         )}
 
         <section className="dash-section dash-section--history">
-          <PortfolioHistoryChart            refreshKey={snapshotRefresh}
+          <PortfolioHistoryChart
+            refreshKey={snapshotRefresh}
             investedValue={t.grandInvested}
             liveCurrentValue={t.grandCurrent}
             todayPnl={t.portfolioToday}
+            pricesStale={pricesStale}
             holdings={{
               indianStocks: inStocks,
               usStocks,

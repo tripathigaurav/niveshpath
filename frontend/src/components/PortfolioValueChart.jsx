@@ -45,17 +45,7 @@ function ChartTooltip({ active, payload, viewMode }) {
 /**
  * Presentational portfolio value chart (Groww / Zerodha style).
  *
- * @param {object} props
- * @param {{ date: string, value: number }[]} props.points — sorted ascending
- * @param {ReturnType<import('../utils/portfolioChartData').computeChartSummary>} props.summary
- * @param {string} props.range
- * @param {(id: string) => void} props.onRangeChange
- * @param {'value' | 'percent'} [props.viewMode]
- * @param {(mode: 'value' | 'percent') => void} [props.onViewModeChange]
- * @param {boolean} [props.loading]
- * @param {string} [props.emptyMessage]
- * @param {boolean} [props.showViewToggle]
- * @param {object | null} [props.breakdown] — opens on header click
+ * Breakdown trigger is the left summary block only — range and ₹/% controls are separate.
  */
 export default function PortfolioValueChart({
   points = [],
@@ -68,13 +58,14 @@ export default function PortfolioValueChart({
   loading = false,
   emptyMessage,
   showViewToggle = true,
+  pricesStale = false,
 }) {
   const gradientId = useId().replace(/:/g, '')
   const [breakdownOpen, setBreakdownOpen] = useState(false)
 
   const colors = useMemo(
-    () => getChartColors(summary?.isPositiveVsInvested ?? true),
-    [summary?.isPositiveVsInvested]
+    () => getChartColors(summary?.isPeriodPositive ?? true),
+    [summary?.isPeriodPositive]
   )
 
   const chartRows = useMemo(
@@ -82,20 +73,60 @@ export default function PortfolioValueChart({
     [points, viewMode]
   )
 
+  const historySource = summary?.historySource ?? 'ledger'
+  const hasSynthetic1D = points.some((p) => p.source === 'synthetic')
+  const chartLineType =
+    historySource === 'snapshot' || hasSynthetic1D ? 'linear' : 'stepAfter'
+  const historyHint =
+    historySource === 'ledger'
+      ? 'Estimated from your buys & sells — open daily to build a market-based chart.'
+      : historySource === 'merged'
+        ? 'Earlier: estimated from transactions · recent: daily live snapshots.'
+        : null
+
+  const priceHint = pricesStale ? 'latest prices' : 'live prices'
+
   const rangeButtons = (
-    <div className="pvc-ranges" role="tablist" aria-label="Portfolio history range">
+    <div className="pvc-ranges" role="group" aria-label="Portfolio history range">
       {CHART_RANGES.map((r) => (
         <button
           key={r.id}
           type="button"
-          role="tab"
-          aria-selected={range === r.id}
+          aria-pressed={range === r.id}
           className={`pvc-range-btn${range === r.id ? ' is-active' : ''}`}
           onClick={() => onRangeChange(r.id)}
         >
           {r.label}
         </button>
       ))}
+    </div>
+  )
+
+  const viewToggle = showViewToggle && onViewModeChange && (
+    <div className="pvc-view-toggle" role="group" aria-label="Chart value mode">
+      <button
+        type="button"
+        aria-pressed={viewMode === 'value'}
+        className={`pvc-view-btn${viewMode === 'value' ? ' is-active' : ''}`}
+        onClick={() => onViewModeChange('value')}
+      >
+        ₹
+      </button>
+      <button
+        type="button"
+        aria-pressed={viewMode === 'percent'}
+        className={`pvc-view-btn${viewMode === 'percent' ? ' is-active' : ''}`}
+        onClick={() => onViewModeChange('percent')}
+      >
+        %
+      </button>
+    </div>
+  )
+
+  const headerControls = (
+    <div className="pvc-header-right">
+      {viewToggle}
+      {rangeButtons}
     </div>
   )
 
@@ -114,12 +145,12 @@ export default function PortfolioValueChart({
         {formatChange(ch)}
         {pct != null && ` (${formatPct(pct)})`}
         {' '}today
-        <span className="pvc-today-hint"> · live prices</span>
+        <span className="pvc-today-hint"> · {priceHint}</span>
       </span>
     )
   })()
 
-  const headerBlock = (valueEl, todayEl) => (
+  const summaryBlock = (valueEl, todayEl) => (
     <button
       type="button"
       className={`pvc-header-trigger${breakdown ? ' pvc-header-trigger--clickable' : ''}`}
@@ -145,15 +176,22 @@ export default function PortfolioValueChart({
     </button>
   )
 
+  const chartHeader = (valueEl, todayEl) => (
+    <div className="pvc-header">
+      <div className="pvc-header-left">{summaryBlock(valueEl, todayEl)}</div>
+      {headerControls}
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="pvc-card">
         <div className="pvc-header">
-          <div>
+          <div className="pvc-header-left">
             <h3 className="pvc-title">Portfolio Value</h3>
             <div className="pvc-value pvc-value--loading">—</div>
           </div>
-          {rangeButtons}
+          {headerControls}
         </div>
         <div className="pvc-chart-shell pvc-chart-shell--loading">
           <div className="pvc-skeleton" />
@@ -166,10 +204,10 @@ export default function PortfolioValueChart({
     return (
       <div className="pvc-card">
         <div className="pvc-header">
-          <div>
+          <div className="pvc-header-left">
             <h3 className="pvc-title">Portfolio Value</h3>
           </div>
-          {rangeButtons}
+          {headerControls}
         </div>
         <p className="pvc-empty">
           {emptyMessage ||
@@ -184,16 +222,13 @@ export default function PortfolioValueChart({
     const displayVal = summary?.currentValue ?? p.value
     return (
       <div className="pvc-card">
-        <div className="pvc-header">
-          {headerBlock(
-            <div className="pvc-value">{formatINR(displayVal, true)}</div>,
-            todayLine
-          )}
-          {rangeButtons}
-        </div>
+        {chartHeader(
+          <div className="pvc-value">{formatINR(displayVal, true)}</div>,
+          todayLine
+        )}
         <div className="pvc-chart-shell pvc-chart-shell--single">
           <p className="pvc-empty pvc-empty--inline">
-            One snapshot on {formatTooltipDate(p.date)}. Visit again tomorrow or try <strong>ALL</strong>.
+            Not enough history yet. Check back tomorrow or try <strong>ALL</strong>.
           </p>
         </div>
         {breakdownOpen && breakdown && (
@@ -208,43 +243,16 @@ export default function PortfolioValueChart({
 
   return (
     <div className="pvc-card">
-      <div className="pvc-header">
-        <div className="pvc-header-left">
-          {headerBlock(
-            <div className="pvc-value">{headerValue}</div>,
-            todayLine ||
-              (summary?.periodChange != null ? (
-                <span
-                  className={`pvc-today ${summary.isPeriodPositive ? 'pos' : 'neg'}`}
-                >
-                  {formatChange(summary.periodChange)} ({formatPct(summary.periodChangePct)}) in
-                  range
-                </span>
-              ) : null)
-          )}
-        </div>
-        <div className="pvc-header-right">
-          {showViewToggle && onViewModeChange && (
-            <div className="pvc-view-toggle" role="group" aria-label="Chart display mode">
-              <button
-                type="button"
-                className={`pvc-view-btn${viewMode === 'value' ? ' is-active' : ''}`}
-                onClick={() => onViewModeChange('value')}
-              >
-                ₹
-              </button>
-              <button
-                type="button"
-                className={`pvc-view-btn${viewMode === 'percent' ? ' is-active' : ''}`}
-                onClick={() => onViewModeChange('percent')}
-              >
-                %
-              </button>
-            </div>
-          )}
-          {rangeButtons}
-        </div>
-      </div>
+      {chartHeader(
+        <div className="pvc-value">{headerValue}</div>,
+        todayLine ||
+          (summary?.periodChange != null ? (
+            <span className={`pvc-today ${summary.isPeriodPositive ? 'pos' : 'neg'}`}>
+              {formatChange(summary.periodChange)} ({formatPct(summary.periodChangePct)}) in
+              range
+            </span>
+          ) : null)
+      )}
 
       <div className="pvc-chart-shell">
         <ResponsiveContainer width="100%" height={300}>
@@ -259,7 +267,7 @@ export default function PortfolioValueChart({
               </linearGradient>
             </defs>
             <CartesianGrid
-              stroke="var(--pvc-grid, #f0f0f0)"
+              stroke="var(--pvc-grid)"
               strokeDasharray="3 3"
               vertical={false}
             />
@@ -290,7 +298,7 @@ export default function PortfolioValueChart({
               }}
             />
             <Area
-              type="monotone"
+              type={chartLineType}
               dataKey="chartY"
               stroke={colors.stroke}
               strokeWidth={2.5}
@@ -308,6 +316,8 @@ export default function PortfolioValueChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+
+      {historyHint && <p className="pvc-history-hint">{historyHint}</p>}
 
       {breakdownOpen && breakdown && (
         <PortfolioValueBreakdownModal

@@ -1,11 +1,19 @@
 /* Portfolio Value Chart — fintech line chart (Groww / Zerodha inspired) */
 
+.pvc-history-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
 .pvc-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px 28px 20px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  /* Chart grid — light default; overridden in dark theme below */
   --pvc-grid: #f0f0f0;
 }
 

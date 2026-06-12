@@ -1,6 +1,7 @@
 import { formatINR, formatChange, formatPct } from './formatters'
 import { formatXirrDisplay } from './xirrMetrics'
 import { pnlColorClass, sumTodayPnl } from './pnl'
+import { xirrUnavailableHint } from './holdingTabMessages'
 /** @typedef {'indianStock'|'usStock'|'mutualFund'} AssetType */
 
 /**
@@ -89,6 +90,7 @@ export function buildHoldingsSummaryMetrics({
   xirrRate = undefined,
   pulsing = false,
   currentSubHint = null,
+  assetType = 'indianStock',
 }) {
   const notionalSub =
     totalPnl != null
@@ -123,7 +125,7 @@ export function buildHoldingsSummaryMetrics({
       ? [{
           label: 'XIRR',
           value: formatXirrDisplay(xirrRate),
-          sub: xirrRate == null ? 'Add dates or refresh prices' : 'Annualized',
+          sub: xirrRate == null ? xirrUnavailableHint(assetType) : 'Annualized',
           colorClass: xirrRate != null ? pnlColorClass(xirrRate) : '',
           accent: xirrRate != null ? (xirrRate >= 0 ? 'gain' : 'loss') : null,
         }]

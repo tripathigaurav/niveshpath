@@ -5,7 +5,7 @@ import { US_CATEGORY, isUsEtf, normalizeUsHolding } from '../utils/usHoldings'
 import { api } from '../utils/api'
 import { logBuy, logSell } from '../utils/transactions'
 import { logAudit } from '../utils/auditTrail'
-import { fetchBatchPricesWithFallback } from '../utils/priceProvider'
+import { fetchBatchPricesWithFallback, mergeQuoteIntoHolding } from '../utils/priceProvider'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useUSStocks() {
@@ -131,12 +131,7 @@ export function useUSStocks() {
       const priceResults = priceBundle.quotes
       setStocks((prev) => {
         const updated = prev.map((s) =>
-          normalizeUsHolding({
-            ...s,
-            currentPrice: priceResults[s.symbol]?.price ?? s.currentPrice,
-            dayChange: priceResults[s.symbol]?.dayChange ?? s.dayChange,
-            dayChangePct: priceResults[s.symbol]?.dayChangePct ?? s.dayChangePct,
-          })
+          normalizeUsHolding(mergeQuoteIntoHolding(s, priceResults[s.symbol]))
         )
         storage.setUSStocks(updated)
         return updated

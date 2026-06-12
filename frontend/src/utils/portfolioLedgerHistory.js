@@ -12,7 +12,7 @@ function addDays(iso, n) {
   return d.toISOString().slice(0, 10)
 }
 
-function costBasisOnDate(transactions, assetType, date) {
+export function costBasisOnDate(transactions, assetType, date) {
   const cutoff = isoDate(date)
   const bySymbol = new Map()
   const sorted = transactions
@@ -173,14 +173,118 @@ export function snapshotsLookUnreliable(snapshots, liveCurrentValue) {
   return drift > 0.25
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function ensureTodayPoint(points, live) {
+  if (live == null || !Number.isFinite(live) || !points.length) return points
+  const today = todayISO()
+  const rounded = Math.round(live * 100) / 100
+  const out = points.map((p) => ({ ...p }))
+  const last = out[out.length - 1]
+  if (last.date === today) {
+    last.value = rounded
+    return out
+  }
+  out.push({ date: today, value: rounded, source: 'snapshot' })
+  return out
+}
+
 /**
- * Prefer real daily snapshots; fall back to ledger when demo/stale.
+ * Prefer real daily snapshots; merge with ledger for earlier period; fall back to ledger.
+ * @returns {{ points: { date: string, value: number, source?: string }[], source: 'snapshot' | 'merged' | 'ledger' }}
  */
 export function resolvePortfolioChartPoints(snapshots, ledgerPoints, liveCurrentValue = null) {
   const realOnly = (snapshots || []).filter((s) => !s.demo)
   const live = liveCurrentValue ?? ledgerPoints[ledgerPoints.length - 1]?.value
+
   if (realOnly.length >= 2 && !snapshotsLookUnreliable(snapshots, live)) {
-    return realOnly.map(({ date, value }) => ({ date, value, source: 'snapshot' }))
+    return {
+      points: ensureTodayPoint(
+        realOnly.map(({ date, value }) => ({ date, value, source: 'snapshot' })),
+        live
+      ),
+      source: 'snapshot',
+    }
   }
-  return ledgerPoints
+
+  if (realOnly.length >= 1 && ledgerPoints.length) {
+    const firstSnapDate = realOnly[0].date
+    const ledgerPrefix = ledgerPoints
+      .filter((p) => p.date < firstSnapDate)
+      .map((p) => ({ ...p, source: 'ledger' }))
+    const snapPoints = realOnly.map(({ date, value }) => ({
+      date,
+      value,
+      source: 'snapshot',
+    }))
+    return {
+      points: ensureTodayPoint([...ledgerPrefix, ...snapPoints], live),
+      source: 'merged',
+    }
+  }
+
+  return {
+    points: ensureTodayPoint(
+      ledgerPoints.map((p) => ({ ...p, source: 'ledger' })),
+      live
+    ),
+    source: 'ledger',
+  }
+}
+
+function collectCategoryEventDates(transactions, assetType) {
+  const dates = new Set()
+  const today = new Date().toISOString().slice(0, 10)
+  dates.add(today)
+  for (const tx of transactions) {
+    if (tx.assetType === assetType && tx.date) dates.add(isoDate(tx.date))
+  }
+  return [...dates].sort()
+}
+
+/**
+ * Daily invested-cost series for one asset category, scaled to live current value.
+ */
+export function buildCategoryHistoryFromLedger({
+  transactions = [],
+  assetType,
+  liveCurrentValue = null,
+  liveInvestedValue = null,
+  usdInr = null,
+}) {
+  const filtered = transactions.filter((t) => t.assetType === assetType)
+  const eventDates = collectCategoryEventDates(filtered, assetType)
+  if (!eventDates.length) return []
+
+  const mult = assetType === 'usStock' && usdInr ? usdInr : 1
+  const eventPoints = eventDates.map((date) => ({
+    date,
+    value: costBasisOnDate(filtered, assetType, date) * mult,
+  }))
+
+  let points = expandToDaily(eventPoints)
+
+  if (liveInvestedValue != null && liveInvestedValue > 0 && liveCurrentValue != null) {
+    const scale = liveCurrentValue / liveInvestedValue
+    points = points.map((p) => ({
+      ...p,
+      invested: p.value,
+      value: Math.round(p.value * scale * 100) / 100,
+      source: 'ledger',
+    }))
+    const last = points[points.length - 1]
+    if (last) {
+      last.value = Math.round(liveCurrentValue * 100) / 100
+      last.invested = liveInvestedValue
+    }
+  } else {
+    points = points.map((p) => ({ ...p, invested: p.value }))
+    if (liveCurrentValue != null && points.length) {
+      points[points.length - 1].value = Math.round(liveCurrentValue * 100) / 100
+    }
+  }
+
+  return points
 }

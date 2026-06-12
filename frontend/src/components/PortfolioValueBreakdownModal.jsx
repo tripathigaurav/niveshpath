@@ -118,7 +118,7 @@ export default function PortfolioValueBreakdownModal({ breakdown, onClose }) {
 
           {b.excludedNote && <p className="pv-bd-foot">{b.excludedNote}</p>}
           <p className="pv-bd-foot">
-            Chart follows your buy/sell history. Today uses live prices where available.
+            Chart follows your buy/sell history. Today uses latest market prices where available.
           </p>
         </div>
         <div className="modal-footer">

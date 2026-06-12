@@ -24,6 +24,10 @@ export function summarizeInsurance(policies) {
   const list = policies || []
   let totalPremium = 0
   let totalCover = 0
+  let healthCover = 0
+  let termCover = 0
+  let healthCount = 0
+  let termCount = 0
   let renewalsDue90 = 0
   let nextRenewalDate = null
   let nextRenewalDays = null
@@ -37,6 +41,9 @@ export function summarizeInsurance(policies) {
     const t = p.type || 'other'
     if (!byType[t]) byType[t] = { count: 0 }
     byType[t].count++
+
+    if (t === 'health') { healthCount++; healthCover += p.coverAmount ?? 0 }
+    if (t === 'term')   { termCount++;   termCover   += p.coverAmount ?? 0 }
 
     if (!p.renewalDate) continue
     const days = daysUntilRenewal(p.renewalDate)
@@ -53,7 +60,11 @@ export function summarizeInsurance(policies) {
     .filter((t) => byType[t])
     .map((t) => ({ type: t, emoji: TYPE_EMOJI[t] ?? '📦', label: INS_TYPE_LABEL[t] ?? t, count: byType[t].count }))
 
-  return { policyCount: list.length, totalPremium, totalCover, renewalsDue90, nextRenewalDate, nextRenewalDays, nextRenewalName, typePills }
+  return {
+    policyCount: list.length, totalPremium, totalCover,
+    healthCover, termCover, healthCount, termCount,
+    renewalsDue90, nextRenewalDate, nextRenewalDays, nextRenewalName, typePills,
+  }
 }
 
 /** @deprecated use summary fields directly in InsuranceCategoryCard */

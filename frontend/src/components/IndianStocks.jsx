@@ -32,6 +32,16 @@ import {
 } from './HoldingCards'
 import IndianHoldingDetailModal from './IndianHoldingDetailModal'
 import MarketStatusBar from './MarketStatusBar'
+import HoldingsSubTabs from './HoldingsSubTabs'
+import ExchangeToggle from './ExchangeToggle'
+import IrrTable from './IrrTable'
+import MarketDataTable from './MarketDataTable'
+import HoldingsPnlChart from './HoldingsPnlChart'
+import { useWindowedXirr } from '../hooks/useWindowedXirr'
+import { useIndianExchangeQuotes } from '../hooks/useIndianExchangeQuotes'
+import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
+import { currentValueHint } from '../utils/holdingTabMessages'
+
 const COL_SPAN = 12
 
 function ColoredValue({ value, format = formatChange }) {
@@ -40,6 +50,22 @@ function ColoredValue({ value, format = formatChange }) {
 }
 
 const getSortVal = (stock, key) => {
+  if (stock.isPast) {
+    switch (key) {
+      case 'symbol':
+        return stock.symbol
+      case 'buyPrice':
+        return stock.buyPrice
+      case 'invested':
+        return stock.totalInvested
+      case 'pnl':
+        return stock.realizedPnl
+      case 'pnlPct':
+        return stock.realizedPct
+      default:
+        return stock[key]
+    }
+  }
   const m = calcIndianStockMetrics(stock)
   switch (key) {
     case 'symbol':
@@ -139,6 +165,36 @@ function StockRow({ stock, xirr, onOpenDetail }) {
   )
 }
 
+function PastStockRow({ stock }) {
+  return (
+    <tr className="row-neutral holdings-row--past">
+      <td className="cell-company">
+        <div className="cell-company-symbol">{stock.symbol}</div>
+        <div className="cell-company-name">{stock.name}</div>
+      </td>
+      <td className="right text-3">—</td>
+      <td className="right mono">0</td>
+      <td className="right mono">{stock.buyPrice != null ? formatINR(stock.buyPrice) : '—'}</td>
+      <td className="right mono">{formatINR(stock.totalInvested)}</td>
+      <td className="right text-3">—</td>
+      <td className="right text-3">—</td>
+      <td className="right text-3">—</td>
+      <td className="right text-3">—</td>
+      <td className="right">
+        <ColoredValue value={stock.realizedPnl} />
+      </td>
+      <td className="right">
+        {stock.realizedPct != null ? (
+          <span className={pnlColorClass(stock.realizedPct)}>{formatPct(stock.realizedPct)}</span>
+        ) : (
+          <span className="text-3">—</span>
+        )}
+      </td>
+      <td className="right text-3">—</td>
+    </tr>
+  )
+}
+
 function EmptyState({ onAdd }) {
   return (
     <div className="empty-state">
@@ -169,33 +225,65 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
   const [deleteStock, setDeleteStock] = useState(null)
   const [detailStock, setDetailStock] = useState(null)
   const [filter, setFilter] = useState('')
+  const [subTab, setSubTab] = useState('basic')
+  const [holdingFilter, setHoldingFilter] = useState('current')
+  const [marketExchange, setMarketExchange] = useState(() => {
+    try {
+      return localStorage.getItem('pt_indian_market_exchange') || 'NSE'
+    } catch {
+      return 'NSE'
+    }
+  })
+
+  const handleMarketExchangeChange = useCallback((ex) => {
+    setMarketExchange(ex)
+    try {
+      localStorage.setItem('pt_indian_market_exchange', ex)
+    } catch {
+      /* ignore */
+    }
+  }, [])
   const filterRef = useRef(null)
 
+  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const pastHoldings = useMemo(
+    () => getPastHoldings(transactions, 'indianStock', currentSymbolSet(stocks, 'indianStock')),
+    [transactions, stocks]
+  )
+
+  const { displayStocks } = useIndianExchangeQuotes(stocks, marketExchange, true)
+
+  const basicSource = useMemo(() => {
+    if (holdingFilter === 'past') return pastHoldings
+    if (holdingFilter === 'all') return [...displayStocks, ...pastHoldings]
+    return displayStocks
+  }, [displayStocks, pastHoldings, holdingFilter])
+
   const filtered = useMemo(() => {
-    if (!filter) return stocks
+    if (!filter) return basicSource
     const q = filter.toLowerCase()
-    return stocks.filter(
-      (s) => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    return basicSource.filter(
+      (s) => s.symbol.toLowerCase().includes(q) || (s.name || '').toLowerCase().includes(q)
     )
-  }, [stocks, filter])
+  }, [basicSource, filter])
 
   const { sorted, sortKey, sortDir, setSort } = useSortable(
     filtered, 'currentValue', 'desc', getSortVal, 'indian'
   )
 
-  const displaySorted = useMemo(() => {
-    const stocksOnly = sorted.filter((s) => !s.isEtf)
-    const etfs = sorted.filter((s) => s.isEtf)
-    return [...stocksOnly, ...etfs]
-  }, [sorted])
-
-  const totals = useMemo(() => calcTotals(stocks), [stocks])
-  const totalTodayPnl = useMemo(() => sumTodayPnl(stocks), [stocks])
+  const totals = useMemo(() => calcTotals(displayStocks), [displayStocks])
+  const totalTodayPnl = useMemo(() => sumTodayPnl(displayStocks), [displayStocks])
   const realizedPnl = useMemo(
     () => calcRealizedGain(storage.getTransactions(), 'indianStock'),
     [stocks]
   )
-  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const { windowedXirr, windowedLoading } = useWindowedXirr(
+    displayStocks,
+    'indianStock',
+    transactions,
+    { exchange: marketExchange, enabled: subTab === 'irr' }
+  )
+
   const xirrById = useMemo(
     () => buildHoldingXirrMap(stocks, 'indianStock', transactions),
     [stocks, transactions]
@@ -245,7 +333,9 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
     showToast('Prices refreshed', 'success')
   }, [refreshPrices, showToast])
 
-  const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
+  const allPricesNull =
+    displayStocks.length > 0 && displayStocks.every((s) => s.currentPrice === null)
+  const hasAnyHoldings = stocks.length > 0 || pastHoldings.length > 0
 
   return (
     <div className="page page--category">
@@ -277,11 +367,11 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
         onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
       ].filter(Boolean)} />
 
-      {stocks.length === 0 ? (
+      {!hasAnyHoldings ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="category-holdings-panel">
-          {!loading && (
+          {!loading && stocks.length > 0 && (
             <SummaryBar
               variant="elevated"
               metrics={buildHoldingsSummaryMetrics({
@@ -293,29 +383,46 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
                 realizedPnl,
                 xirrRate,
                 pulsing,
+                assetType: 'indianStock',
+                currentSubHint:
+                  totals.totalCurrent == null ? currentValueHint('indianStock') : null,
               })}
             />
           )}
 
-          <FilterBar
-            value={filter}
-            onChange={setFilter}
-            total={stocks.length}
-            filtered={filtered.length}
-            inputRef={filterRef}
+          <HoldingsSubTabs
+            activeTab={subTab}
+            onTabChange={setSubTab}
+            showHoldingFilter={subTab === 'basic'}
+            holdingFilter={holdingFilter}
+            onHoldingFilterChange={setHoldingFilter}
+            subtabBarRight={
+              subTab !== 'pnl' ? (
+                <ExchangeToggle value={marketExchange} onChange={handleMarketExchangeChange} />
+              ) : null
+            }
           />
 
-          {allPricesNull && !loading && (
-            <div className="prices-unavailable">
-              <span>Prices unavailable</span>
-              <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>
-                Retry
-              </button>
-            </div>
-          )}
+          {subTab === 'basic' && (
+            <>
+              <FilterBar
+                value={filter}
+                onChange={setFilter}
+                total={basicSource.length}
+                filtered={filtered.length}
+                inputRef={filterRef}
+              />
 
+              {allPricesNull && !loading && holdingFilter !== 'past' && (
+                <div className="prices-unavailable">
+                  <span>Prices unavailable</span>
+                  <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>
+                    Retry
+                  </button>
+                </div>
+              )}
 
-          <div className="table-scroll">
+              <div className="table-scroll">
             <table className="holdings-table holdings-table--indian">
               <caption className="sr-only">Indian stock holdings with current prices and performance</caption>
               <colgroup>
@@ -356,14 +463,18 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
                     <td colSpan={COL_SPAN} className="filter-no-results">No holdings match "{filter}"</td>
                   </tr>
                 ) : (
-                  displaySorted.map((s) => (
-                    <StockRow
-                      key={s.id}
-                      stock={s}
-                      xirr={xirrById.get(s.id)}
-                      onOpenDetail={setDetailStock}
-                    />
-                  ))
+                  sorted.map((s) =>
+                    s.isPast ? (
+                      <PastStockRow key={s.id} stock={s} />
+                    ) : (
+                      <StockRow
+                        key={s.id}
+                        stock={s}
+                        xirr={xirrById.get(s.id)}
+                        onOpenDetail={setDetailStock}
+                      />
+                    )
+                  )
                 )}
               </tbody>
             </table>
@@ -374,7 +485,7 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
               <HoldingCardsEmpty message={`No holdings match "${filter}"`} />
             ) : (
               <div className="holding-cards">
-                {displaySorted.map((s) => (
+                {sorted.filter((s) => !s.isPast).map((s) => (
                   <IndianStockCard
                     key={s.id}
                     stock={s}
@@ -386,6 +497,39 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
               </div>
             )}
           </div>
+            </>
+          )}
+
+          {subTab === 'irr' && (
+            <IrrTable
+              holdings={displayStocks}
+              assetType="indianStock"
+              windowedXirr={windowedXirr}
+              loading={windowedLoading}
+              formatPrice={formatINR}
+              getQty={(h) => h.qty}
+              getLabel={(h) => h.symbol}
+              getPrice={(h) => h.currentPrice}
+            />
+          )}
+
+          {subTab === 'market' && (
+            <MarketDataTable
+              holdings={displayStocks}
+              assetType="indianStock"
+              formatPrice={formatINR}
+              exchange={marketExchange}
+            />
+          )}
+
+          {subTab === 'pnl' && (
+            <HoldingsPnlChart
+              transactions={transactions}
+              assetType="indianStock"
+              liveCurrentValue={totals.totalCurrent}
+              liveInvestedValue={totals.totalInvested}
+            />
+          )}
 
         </div>
       )}

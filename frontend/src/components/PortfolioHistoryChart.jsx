@@ -10,8 +10,9 @@ import {
 } from '../utils/portfolioLedgerHistory'
 import {
   CHART_RANGES,
+  compactFlatRuns,
   computeChartSummary,
-  filterPointsByRange,
+  resolveRangePoints,
 } from '../utils/portfolioChartData'
 import { buildPortfolioValueBreakdown } from '../utils/portfolioValueBreakdown'
 import { storage } from '../utils/storage'
@@ -26,6 +27,7 @@ export default function PortfolioHistoryChart({
   todayPnl = null,
   liveCurrentValue = null,
   holdings = null,
+  pricesStale = false,
 }) {
   const [range, setRange] = useState('1Y')
   const [viewMode, setViewMode] = useState('value')
@@ -56,14 +58,16 @@ export default function PortfolioHistoryChart({
           })
         : []
 
-      const resolved = resolvePortfolioChartPoints(snapshots, ledgerPoints, liveCurrentValue)
-      const source =
-        resolved[0]?.source === 'snapshot' && !snapshots.some((s) => s.demo)
-          ? 'snapshot'
-          : 'ledger'
+      const { points: resolved, source } = resolvePortfolioChartPoints(
+        snapshots,
+        ledgerPoints,
+        liveCurrentValue
+      )
+      const chartPoints =
+        source === 'snapshot' ? resolved : compactFlatRuns(resolved)
 
       if (!cancelled) {
-        setAllPoints(resolved)
+        setAllPoints(chartPoints)
         setHistorySource(source)
       }
     }
@@ -82,8 +86,12 @@ export default function PortfolioHistoryChart({
   }, [refreshKey, holdings, liveCurrentValue, investedValue])
 
   const points = useMemo(
-    () => filterPointsByRange(allPoints, range),
-    [allPoints, range]
+    () =>
+      resolveRangePoints(allPoints, range, {
+        liveCurrentValue,
+        todayPnl,
+      }),
+    [allPoints, range, liveCurrentValue, todayPnl]
   )
 
   const summary = useMemo(() => {
@@ -115,6 +123,7 @@ export default function PortfolioHistoryChart({
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       loading={loading}
+      pricesStale={pricesStale}
       emptyMessage="Add holdings or log buy/sell transactions to see portfolio history."
     />
   )

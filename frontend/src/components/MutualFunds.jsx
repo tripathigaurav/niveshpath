@@ -14,9 +14,17 @@ import {
 import { storage } from '../utils/storage'
 import {
   calcCategoryXirr,
+  calcHoldingXirr,
   formatXirrDisplay,
   buildHoldingXirrMap,
 } from '../utils/xirrMetrics'
+import HoldingsSubTabs from './HoldingsSubTabs'
+import IrrTable from './IrrTable'
+import MarketDataTable from './MarketDataTable'
+import HoldingsPnlChart from './HoldingsPnlChart'
+import { useWindowedXirr } from '../hooks/useWindowedXirr'
+import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
+import { currentValueHint } from '../utils/holdingTabMessages'
 import { pnlColorClass } from '../utils/pnl'
 import { useSortable } from '../hooks/useSortable'
 import SortTh from './SortTh'
@@ -34,6 +42,20 @@ import {
 } from './HoldingCards'
 
 const getSortVal = (fund, key) => {
+  if (fund.isPast) {
+    switch (key) {
+      case 'symbol':
+        return fund.schemeName || fund.name
+      case 'buyNAV':
+        return fund.buyNAV
+      case 'invested':
+        return fund.totalInvested
+      case 'pnlPct':
+        return fund.realizedPct
+      default:
+        return fund[key]
+    }
+  }
   switch (key) {
     case 'symbol': return fund.schemeName
     case 'pnlPct': return calcMfPnl(fund).pnlPct
@@ -109,6 +131,39 @@ function FundRow({ fund, xirr, onOpenDetail }) {
   )
 }
 
+function PastFundRow({ fund }) {
+  return (
+    <tr className="row-neutral holdings-row--past">
+      <td className="cell-scheme">
+        <div className="cell-scheme-name" title={fund.schemeName}>{fund.schemeName}</div>
+        <div className="text-muted-sm">Code: {fund.schemeCode}</div>
+      </td>
+      <td className="right mono">0</td>
+      <td className="right mono">{fund.buyNAV != null ? formatINR(fund.buyNAV) : '—'}</td>
+      <td className="right text-3">—</td>
+      <td className="right mono">{formatINR(fund.totalInvested)}</td>
+      <td className="right text-3">—</td>
+      <td className="right">
+        {fund.realizedPnl != null ? (
+          <span className={fund.realizedPnl >= 0 ? 'text-gain' : 'text-loss'}>
+            {formatChange(fund.realizedPnl)}
+          </span>
+        ) : (
+          <span className="text-3">—</span>
+        )}
+      </td>
+      <td className="right">
+        {fund.realizedPct != null ? (
+          <span className={pnlColorClass(fund.realizedPct)}>{formatPct(fund.realizedPct)}</span>
+        ) : (
+          <span className="text-3">—</span>
+        )}
+      </td>
+      <td className="right text-3">—</td>
+    </tr>
+  )
+}
+
 function EmptyState({ onAdd }) {
   return (
     <div className="empty-state">
@@ -137,14 +192,30 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
   const [deleteFund, setDeleteFund] = useState(null)
   const [detailFund, setDetailFund] = useState(null)
   const [filter, setFilter] = useState('')
+  const [subTab, setSubTab] = useState('basic')
+  const [holdingFilter, setHoldingFilter] = useState('current')
+
+  const transactions = useMemo(() => storage.getTransactions(), [funds])
+  const pastHoldings = useMemo(
+    () => getPastHoldings(transactions, 'mutualFund', currentSymbolSet(funds, 'mutualFund')),
+    [transactions, funds]
+  )
+
+  const basicSource = useMemo(() => {
+    if (holdingFilter === 'past') return pastHoldings
+    if (holdingFilter === 'all') return [...funds, ...pastHoldings]
+    return funds
+  }, [funds, pastHoldings, holdingFilter])
 
   const filtered = useMemo(() => {
-    if (!filter) return funds
+    if (!filter) return basicSource
     const q = filter.toLowerCase()
-    return funds.filter(
-      (f) => f.schemeName.toLowerCase().includes(q) || String(f.schemeCode).includes(q)
+    return basicSource.filter(
+      (f) =>
+        (f.schemeName || f.name || '').toLowerCase().includes(q) ||
+        String(f.schemeCode || f.symbol).includes(q)
     )
-  }, [funds, filter])
+  }, [basicSource, filter])
 
   const { sorted, sortKey, sortDir, setSort } = useSortable(
     filtered, 'currentValue', 'desc', getSortVal, 'mf'
@@ -156,7 +227,13 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
     () => calcRealizedGain(storage.getTransactions(), 'mutualFund'),
     [funds]
   )
-  const transactions = useMemo(() => storage.getTransactions(), [funds])
+  const { windowedXirr, windowedLoading } = useWindowedXirr(
+    funds,
+    'mutualFund',
+    transactions,
+    { enabled: subTab === 'irr' }
+  )
+
   const xirrById = useMemo(
     () => buildHoldingXirrMap(funds, 'mutualFund', transactions),
     [funds, transactions]
@@ -207,6 +284,8 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
   }, [refreshNAVs, showToast])
 
   const allNavNull = funds.length > 0 && funds.every((f) => f.currentNAV === null)
+  const hasAnyHoldings = funds.length > 0 || pastHoldings.length > 0
+
   return (
     <div className="page page--category">
       <div className="section-header">
@@ -238,11 +317,11 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
         onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
       ].filter(Boolean)} />
 
-      {funds.length === 0 ? (
+      {!hasAnyHoldings ? (
         <EmptyState onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="category-holdings-panel">
-          {!loading && (
+          {!loading && funds.length > 0 && (
             <SummaryBar
               variant="elevated"
               metrics={buildHoldingsSummaryMetrics({
@@ -254,26 +333,38 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
                 realizedPnl,
                 xirrRate,
                 pulsing,
-                currentSubHint: totals.totalCurrent == null ? 'Refresh NAV to see value' : null,
+                assetType: 'mutualFund',
+                currentSubHint:
+                  totals.totalCurrent == null ? currentValueHint('mutualFund') : null,
               })}
             />
           )}
 
-          <FilterBar
-            value={filter}
-            onChange={setFilter}
-            total={funds.length}
-            filtered={filtered.length}
+          <HoldingsSubTabs
+            activeTab={subTab}
+            onTabChange={setSubTab}
+            showHoldingFilter={subTab === 'basic'}
+            holdingFilter={holdingFilter}
+            onHoldingFilterChange={setHoldingFilter}
           />
 
-          {allNavNull && !loading && (
-            <div className="prices-unavailable">
-              <span>NAVs unavailable</span>
-              <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>↻ Retry</button>
-            </div>
-          )}
+          {subTab === 'basic' && (
+            <>
+              <FilterBar
+                value={filter}
+                onChange={setFilter}
+                total={basicSource.length}
+                filtered={filtered.length}
+              />
 
-          <div className="table-scroll">
+              {allNavNull && !loading && holdingFilter !== 'past' && (
+                <div className="prices-unavailable">
+                  <span>NAVs unavailable</span>
+                  <button className="btn btn-secondary btn-sm" onClick={handleRefresh}>↻ Retry</button>
+                </div>
+              )}
+
+              <div className="table-scroll">
             <table className="holdings-table holdings-table--mf">
               <caption className="sr-only">Mutual fund holdings with current NAV and performance</caption>
               <colgroup>
@@ -310,14 +401,18 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
                     <td colSpan={9} className="filter-no-results">No holdings match "{filter}"</td>
                   </tr>
                 ) : (
-                  sorted.map((f) => (
-                    <FundRow
-                      key={f.id}
-                      fund={f}
-                      xirr={xirrById.get(f.id)}
-                      onOpenDetail={setDetailFund}
-                    />
-                  ))
+                  sorted.map((f) =>
+                    f.isPast ? (
+                      <PastFundRow key={f.id} fund={f} />
+                    ) : (
+                      <FundRow
+                        key={f.id}
+                        fund={f}
+                        xirr={xirrById.get(f.id)}
+                        onOpenDetail={setDetailFund}
+                      />
+                    )
+                  )
                 )}
               </tbody>
             </table>
@@ -328,7 +423,7 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
               <HoldingCardsEmpty message={`No holdings match "${filter}"`} />
             ) : (
               <div className="holding-cards">
-                {sorted.map((f) => (
+                {sorted.filter((f) => !f.isPast).map((f) => (
                   <MutualFundCard
                     key={f.id}
                     fund={f}
@@ -340,6 +435,34 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
               </div>
             )}
           </div>
+            </>
+          )}
+
+          {subTab === 'irr' && (
+            <IrrTable
+              holdings={funds}
+              assetType="mutualFund"
+              windowedXirr={windowedXirr}
+              loading={windowedLoading}
+              formatPrice={formatINR}
+              getQty={(h) => h.units}
+              getLabel={(h) => h.schemeName}
+              getPrice={(h) => h.currentNAV}
+            />
+          )}
+
+          {subTab === 'market' && (
+            <MarketDataTable holdings={funds} assetType="mutualFund" />
+          )}
+
+          {subTab === 'pnl' && (
+            <HoldingsPnlChart
+              transactions={transactions}
+              assetType="mutualFund"
+              liveCurrentValue={totals.totalCurrent}
+              liveInvestedValue={totals.totalInvested}
+            />
+          )}
 
         </div>
       )}

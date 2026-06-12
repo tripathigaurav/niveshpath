@@ -18,4 +18,4 @@ export const MORE_TABS = [
 
 export const ALL_TAB_IDS = [...MAIN_TABS, ...MORE_TABS].map((t) => t.id)
 
-export const DEFAULT_TAB = 'indianStocks'
+export const DEFAULT_TAB = 'dashboard'

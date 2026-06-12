@@ -20,6 +20,9 @@ function makeGetSortVal(usdInr) {
       case 'invested': return stock.qty * stock.buyPrice
       case 'buyPrice': return stock.buyPrice
       case 'qty': return stock.qty
+      case 'ltp':
+      case 'currentPrice':
+        return stock.currentPrice
       case 'xirr':
         return calcHoldingXirr(stock, 'usStock', storage.getTransactions(), { usdInr })
       default: return stock[key]
@@ -166,7 +169,7 @@ export default function USHoldingsSection({
                   <SortTh col="symbol" label="Company" className="cell-company" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="qty" label="Qty" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="buyPrice" label={priceLabel} className="right col-buy-price" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
-                  <th className="right">{cmpLabel}</th>
+                  <SortTh col="ltp" label={cmpLabel} className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="invested" label="Invested" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <SortTh col="currentValue" label="Networth" className="right" sortKey={sortKey} sortDir={sortDir} setSort={setSort} />
                   <th className="right">{pnlLabel}</th>

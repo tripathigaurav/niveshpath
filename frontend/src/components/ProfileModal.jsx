@@ -206,7 +206,7 @@ export default function ProfileModal({
               <div className={styles.profileSectionLabel}>Settings</div>
               <div className={styles.profileSettingRow}>
                 <label className={styles.profileSettingLabel} htmlFor="refresh-interval-select">
-                  Auto-refresh prices
+                  Auto-refresh prices & NAVs
                 </label>
                 <select
                   id="refresh-interval-select"

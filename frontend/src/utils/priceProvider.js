@@ -26,6 +26,11 @@ export async function fetchBatchPricesWithFallback(symbols) {
           price: row.price,
           dayChange: row.dayChange,
           dayChangePct: row.dayChangePct,
+          open: row.open,
+          dayHigh: row.dayHigh,
+          dayLow: row.dayLow,
+          yearHigh: row.yearHigh,
+          yearLow: row.yearLow,
           stale: true,
           cachedAt: row.cachedAt,
         }
@@ -42,6 +47,12 @@ export function mergeQuoteIntoHolding(holding, quote, priceKey = 'currentPrice')
     [priceKey]: quote.price ?? holding[priceKey],
     dayChange: quote.dayChange ?? holding.dayChange,
     dayChangePct: quote.dayChangePct ?? holding.dayChangePct,
+    previousClose: quote.previousClose ?? holding.previousClose,
+    open: quote.open ?? holding.open,
+    dayHigh: quote.dayHigh ?? holding.dayHigh,
+    dayLow: quote.dayLow ?? holding.dayLow,
+    yearHigh: quote.yearHigh ?? holding.yearHigh,
+    yearLow: quote.yearLow ?? holding.yearLow,
     priceStale: Boolean(quote.stale),
   }
 }

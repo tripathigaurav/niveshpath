@@ -4,7 +4,7 @@ import { storage } from '../utils/storage'
 import { isIndianEtf, normalizeIndianHolding } from '../utils/indianHoldings'
 import { logBuy, logSell } from '../utils/transactions'
 import { logAudit } from '../utils/auditTrail'
-import { fetchBatchPricesWithFallback } from '../utils/priceProvider'
+import { fetchBatchPricesWithFallback, mergeQuoteIntoHolding } from '../utils/priceProvider'
 import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useIndianStocks() {
@@ -104,15 +104,9 @@ export function useIndianStocks() {
       const { quotes, stale } = await fetchBatchPricesWithFallback(symbols)
       setPricesStale(stale)
       setStocks((prev) => {
-        const updated = prev.map((s) => {
-          const q = quotes[s.symbol]
-          return normalizeIndianHolding({
-            ...s,
-            currentPrice: q?.price ?? s.currentPrice,
-            dayChange: q?.dayChange ?? s.dayChange,
-            dayChangePct: q?.dayChangePct ?? s.dayChangePct,
-          })
-        })
+        const updated = prev.map((s) =>
+          normalizeIndianHolding(mergeQuoteIntoHolding(s, quotes[s.symbol]))
+        )
         storage.setIndianStocks(updated)
         return updated
       })

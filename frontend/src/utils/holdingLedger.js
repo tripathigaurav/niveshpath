@@ -76,6 +76,84 @@ export function txTypeLabel(type) {
   return String(type || '').toUpperCase()
 }
 
+function symbolKeyForAsset(holding, assetType) {
+  if (assetType === 'mutualFund') return String(holding.schemeCode)
+  return holding.symbol
+}
+
+/**
+ * Fully exited positions from the transaction log (not in current holdings).
+ * @param {object[]} transactions
+ * @param {'indianStock'|'usStock'|'mutualFund'} assetType
+ * @param {Set<string>} currentSymbols — symbols/schemeCodes still held
+ */
+export function getPastHoldings(transactions, assetType, currentSymbols) {
+  const bySymbol = new Map()
+
+  for (const tx of transactions) {
+    if (tx.assetType !== assetType) continue
+    const sym = String(tx.symbol)
+    if (!bySymbol.has(sym)) {
+      bySymbol.set(sym, { txs: [], name: tx.name || sym })
+    }
+    const bucket = bySymbol.get(sym)
+    bucket.txs.push(tx)
+    if (tx.name) bucket.name = tx.name
+  }
+
+  const past = []
+  for (const [symbol, { txs, name }] of bySymbol) {
+    if (currentSymbols.has(symbol)) continue
+    const qty = netQtyFromTxList(txs)
+    if (qty > 0) continue
+
+    let buyQty = 0
+    let buyCost = 0
+    let sellProceeds = 0
+    for (const tx of txs) {
+      if (tx.type === 'buy' && tx.qty != null && tx.price != null) {
+        buyQty += tx.qty
+        buyCost += tx.qty * tx.price
+      } else if (tx.type === 'sell' && tx.qty != null && tx.price != null) {
+        sellProceeds += tx.qty * tx.price
+      }
+    }
+
+    const realized = calcSymbolRealized(txs, symbol)
+    const avgCost = buyQty > 0 ? buyCost / buyQty : null
+    const realizedPct = buyCost > 0 ? (realized / buyCost) * 100 : null
+
+    past.push({
+      id: `past-${assetType}-${symbol}`,
+      symbol,
+      name,
+      schemeCode: assetType === 'mutualFund' ? symbol : undefined,
+      schemeName: assetType === 'mutualFund' ? name : undefined,
+      qty: 0,
+      units: 0,
+      buyPrice: avgCost,
+      buyNAV: avgCost,
+      currentPrice: null,
+      currentNAV: null,
+      isPast: true,
+      totalInvested: buyCost,
+      totalProceeds: sellProceeds,
+      realizedPnl: realized,
+      realizedPct,
+    })
+  }
+
+  return past.sort((a, b) => (b.realizedPnl ?? 0) - (a.realizedPnl ?? 0))
+}
+
+export function currentSymbolSet(holdings, assetType) {
+  const set = new Set()
+  for (const h of holdings || []) {
+    set.add(symbolKeyForAsset(h, assetType))
+  }
+  return set
+}
+
 export function calcSymbolRealized(transactions, symbol) {
   const txs = transactions
     .filter((t) => t.symbol === symbol)

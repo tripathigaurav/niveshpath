@@ -36,9 +36,24 @@ function todayISO() {
 }
 
 /**
- * @param {PortfolioPoint[]} points — sorted ascending by date
- * @param {string} rangeId
+ * Drop flat middle days so step charts show plateaus + jumps, not fake slopes.
+ * @param {PortfolioPoint[]} points
  */
+export function compactFlatRuns(points) {
+  if (!points?.length) return []
+  if (points.length < 3) return [...points]
+
+  const out = [points[0]]
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1].value
+    const cur = points[i].value
+    const next = points[i + 1].value
+    if (cur !== prev || cur !== next) out.push(points[i])
+  }
+  out.push(points[points.length - 1])
+  return out
+}
+
 export function filterPointsByRange(points, rangeId) {
   if (!points?.length) return []
   const range = CHART_RANGES.find((r) => r.id === rangeId) || CHART_RANGES[4]
@@ -48,6 +63,45 @@ export function filterPointsByRange(points, rangeId) {
   if (filtered.length >= 2) return filtered
   if (points.length >= 2) return points.slice(-Math.min(points.length, Math.max(2, range.days + 1)))
   return filtered.length ? filtered : points.slice(-1)
+}
+
+/**
+ * Apply range filter; for 1D without intraday data, synthesize previous close → live current.
+ * @param {PortfolioPoint[]} points
+ * @param {string} rangeId
+ * @param {{ liveCurrentValue?: number | null, todayPnl?: number | null }} opts
+ */
+export function resolveRangePoints(
+  points,
+  rangeId,
+  { liveCurrentValue = null, todayPnl = null } = {}
+) {
+  const filtered = filterPointsByRange(points, rangeId)
+  if (rangeId !== '1D' || filtered.length >= 2 || liveCurrentValue == null) {
+    return filtered
+  }
+
+  const today = todayISO()
+  const previousClose =
+    todayPnl != null
+      ? liveCurrentValue - todayPnl
+      : filtered[filtered.length - 1]?.value
+
+  if (previousClose == null || previousClose <= 0) return filtered
+
+  const yesterday = cutoffDateString(1)
+  return [
+    {
+      date: yesterday,
+      value: Math.round(previousClose * 100) / 100,
+      source: 'synthetic',
+    },
+    {
+      date: today,
+      value: Math.round(liveCurrentValue * 100) / 100,
+      source: 'snapshot',
+    },
+  ]
 }
 
 export function formatChartAxisDate(iso, rangeId) {
@@ -112,7 +166,6 @@ export function computeChartSummary(
       snapshotTodayChangePct: null,
       prevSnapshotDate: null,
       historySource: null,
-      isPositiveVsInvested: true,
       isPeriodPositive: true,
     }
   }
@@ -134,19 +187,16 @@ export function computeChartSummary(
   const todayChange = todayPnl ?? snapshotTodayChange
   let todayChangePct = null
   if (todayChange != null) {
-    const base =
+    // todayPct = todayPnl / previousCloseValue × 100
+    const previousCloseValue =
       liveCurrentValue != null
         ? liveCurrentValue - todayChange
         : prev?.value ?? (last.value - todayChange)
-    todayChangePct = base > 0 ? (todayChange / base) * 100 : 0
+    todayChangePct =
+      previousCloseValue > 0 ? (todayChange / previousCloseValue) * 100 : 0
   }
 
   const displayValue = liveCurrentValue ?? last.value
-
-  const isPositiveVsInvested =
-    investedValue != null && investedValue > 0
-      ? displayValue >= investedValue
-      : periodChange >= 0
 
   return {
     currentValue: displayValue,
@@ -158,7 +208,7 @@ export function computeChartSummary(
     snapshotTodayChangePct,
     prevSnapshotDate: prev?.date ?? null,
     historySource: null,
-    isPositiveVsInvested,
+    /** Chart stroke/fill: selected range end vs start (not all-time vs invested). */
     isPeriodPositive: periodChange >= 0,
   }
 }

@@ -82,17 +82,48 @@ def fetch_ticker_data(symbol: str) -> dict:
             prev = fi.get("previousClose") or fi.get("regularMarketPreviousClose")
             day_change = round(price - prev, 4) if price is not None and prev is not None else None
             day_pct = round((day_change / prev) * 100, 2) if day_change is not None and prev else None
+
+            def _round_opt(val):
+                if val is None:
+                    return None
+                try:
+                    return round(float(val), 4)
+                except (TypeError, ValueError):
+                    return None
+
+            open_px = fi.get("open") or fi.get("regularMarketOpen")
+            day_high = fi.get("dayHigh") or fi.get("regularMarketDayHigh")
+            day_low = fi.get("dayLow") or fi.get("regularMarketDayLow")
+            year_high = fi.get("yearHigh") or fi.get("fiftyTwoWeekHigh")
+            year_low = fi.get("yearLow") or fi.get("fiftyTwoWeekLow")
+
             return {
                 "symbol": sym,
-                "price": round(float(price), 4) if price is not None else None,
-                "previousClose": round(float(prev), 4) if prev is not None else None,
+                "price": _round_opt(price),
+                "previousClose": _round_opt(prev),
                 "dayChange": day_change,
                 "dayChangePct": day_pct,
+                "open": _round_opt(open_px),
+                "dayHigh": _round_opt(day_high),
+                "dayLow": _round_opt(day_low),
+                "yearHigh": _round_opt(year_high),
+                "yearLow": _round_opt(year_low),
                 "error": None,
             }
         except Exception as exc:
-            return {"symbol": sym, "price": None, "previousClose": None,
-                    "dayChange": None, "dayChangePct": None, "error": str(exc)}
+            return {
+                "symbol": sym,
+                "price": None,
+                "previousClose": None,
+                "dayChange": None,
+                "dayChangePct": None,
+                "open": None,
+                "dayHigh": None,
+                "dayLow": None,
+                "yearHigh": None,
+                "yearLow": None,
+                "error": str(exc),
+            }
 
     result = _query(symbol)
 

@@ -15,7 +15,13 @@ import { calcCategoryXirr, formatXirrDisplay, buildHoldingXirrMap } from '../uti
 import { partitionUsHoldings, US_CATEGORY } from '../utils/usHoldings'
 import MarketStatusBar from './MarketStatusBar'
 import PageActions from './PageActions'
-
+import HoldingsSubTabs from './HoldingsSubTabs'
+import IrrTable from './IrrTable'
+import MarketDataTable from './MarketDataTable'
+import HoldingsPnlChart from './HoldingsPnlChart'
+import { useWindowedXirr } from '../hooks/useWindowedXirr'
+import { getPastHoldings, currentSymbolSet } from '../utils/holdingLedger'
+import { xirrUnavailableHint } from '../utils/holdingTabMessages'
 function EmptyState({ onAddStock }) {
   return (
     <div className="empty-state">
@@ -49,13 +55,18 @@ export default function USStocks({ showToast, onOpenTransactions }) {
   const [detailStock, setDetailStock] = useState(null)
   const [filter, setFilter] = useState('')
   const [showInr, setShowInr] = useState(false)
+  const [subTab, setSubTab] = useState('basic')
+  const [holdingFilter, setHoldingFilter] = useState('current')
+
+  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const pastHoldings = useMemo(
+    () => getPastHoldings(transactions, 'usStock', currentSymbolSet(stocks, 'usStock')),
+    [transactions, stocks]
+  )
 
   const partition = useMemo(() => partitionUsHoldings(stocks), [stocks])
 
-  const stockTableHoldings = useMemo(
-    () => [...partition.stocksOnly, ...partition.etfs],
-    [partition.stocksOnly, partition.etfs]
-  )
+  const stockTableHoldings = useMemo(() => partition.stockBucket, [partition.stockBucket])
 
   const totals = useMemo(() => calcTotals(stocks), [stocks])
   const totalDayChange = useMemo(() => {
@@ -74,7 +85,13 @@ export default function USStocks({ showToast, onOpenTransactions }) {
     () => calcRealizedGain(storage.getTransactions(), 'usStock'),
     [stocks]
   )
-  const transactions = useMemo(() => storage.getTransactions(), [stocks])
+  const { windowedXirr, windowedLoading } = useWindowedXirr(
+    stocks,
+    'usStock',
+    transactions,
+    { usdInr, enabled: subTab === 'irr' }
+  )
+
   const xirrById = useMemo(
     () => buildHoldingXirrMap(stocks, 'usStock', transactions, { usdInr }),
     [stocks, transactions, usdInr]
@@ -126,7 +143,11 @@ export default function USStocks({ showToast, onOpenTransactions }) {
   }, [refreshPrices, showToast])
 
   const allPricesNull = stocks.length > 0 && stocks.every((s) => s.currentPrice === null)
+  const hasAnyHoldings = stocks.length > 0 || pastHoldings.length > 0
   const pnlClr = totals.totalPnl != null ? (totals.totalPnl >= 0 ? 'text-gain' : 'text-loss') : ''
+  const fmtPrice = showInr && usdInr ? (p) => formatINR(p * usdInr) : formatUSD
+  const liveCurrentInr = totals.totalCurrent != null && usdInr ? totals.totalCurrent * usdInr : totals.totalCurrent
+  const liveInvestedInr = usdInr ? totals.totalInvested * usdInr : totals.totalInvested
 
   const stockSubtitle = buildStockSubtitle(stockTableHoldings.length)
 
@@ -182,7 +203,7 @@ export default function USStocks({ showToast, onOpenTransactions }) {
         onOpenTransactions && { icon: '📋', label: 'Transactions', onClick: onOpenTransactions },
       ].filter(Boolean)} />
 
-      {stocks.length === 0 ? (
+      {!hasAnyHoldings ? (
         <EmptyState onAddStock={() => setAddCategory('stock')} />
       ) : (
         <div className="us-holdings-panel">
@@ -237,7 +258,7 @@ export default function USStocks({ showToast, onOpenTransactions }) {
                   {
                     label: 'XIRR',
                     value: formatXirrDisplay(xirrRate),
-                    sub: xirrRate == null ? 'Add dates or refresh prices' : 'Annualized',
+                    sub: xirrRate == null ? xirrUnavailableHint('usStock') : 'Annualized',
                     colorClass: xirrRate != null ? pnlColorClass(xirrRate) : '',
                     accent: xirrRate != null ? (xirrRate >= 0 ? 'gain' : 'loss') : null,
                   },
@@ -246,22 +267,81 @@ export default function USStocks({ showToast, onOpenTransactions }) {
             )
           })()}
 
-          <FilterBar
-            value={filter}
-            onChange={setFilter}
-            total={stocks.length}
-            filtered={filteredCount}
+          <HoldingsSubTabs
+            activeTab={subTab}
+            onTabChange={setSubTab}
+            showHoldingFilter={subTab === 'basic'}
+            holdingFilter={holdingFilter}
+            onHoldingFilterChange={setHoldingFilter}
           />
 
-          {allPricesNull && !loading && (
-            <div className="prices-unavailable">
-              <span>Prices unavailable</span>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={handleRefresh}>
-                ↻ Retry
-              </button>
-            </div>
-          )}
+          {subTab === 'basic' && (
+            <>
+              <FilterBar
+                value={filter}
+                onChange={setFilter}
+                total={
+                  holdingFilter === 'past'
+                    ? pastHoldings.length
+                    : holdingFilter === 'all'
+                      ? stocks.length + pastHoldings.length
+                      : stocks.length
+                }
+                filtered={filteredCount}
+              />
 
+              {allPricesNull && !loading && holdingFilter !== 'past' && (
+                <div className="prices-unavailable">
+                  <span>Prices unavailable</span>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleRefresh}>
+                    ↻ Retry
+                  </button>
+                </div>
+              )}
+
+              {holdingFilter === 'past' && (
+                <div className="table-scroll">
+                  <table className="holdings-table holdings-table--us">
+                    <thead>
+                      <tr>
+                        <th>Company</th>
+                        <th className="right">Avg Cost</th>
+                        <th className="right">Invested</th>
+                        <th className="right">Realized P&amp;L</th>
+                        <th className="right">Realized %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pastHoldings.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="filter-no-results">No past holdings</td>
+                        </tr>
+                      ) : (
+                        pastHoldings.map((s) => (
+                          <tr key={s.id} className="holdings-row--past">
+                            <td className="cell-company">
+                              <div className="cell-company-symbol">{s.symbol}</div>
+                              <div className="cell-company-name">{s.name}</div>
+                            </td>
+                            <td className="right mono">
+                              {s.buyPrice != null ? fmtPrice(s.buyPrice) : '—'}
+                            </td>
+                            <td className="right mono">{fmtPrice(s.totalInvested)}</td>
+                            <td className={`right ${pnlColorClass(s.realizedPnl)}`}>
+                              {s.realizedPnl != null ? formatChange(showInr && usdInr ? s.realizedPnl * usdInr : s.realizedPnl, showInr ? undefined : 'USD') : '—'}
+                            </td>
+                            <td className={`right ${pnlColorClass(s.realizedPct)}`}>
+                              {s.realizedPct != null ? formatPct(s.realizedPct) : '—'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {holdingFilter !== 'past' && (
           <div className="us-sections-stack">
             <USHoldingsSection
               title="Stocks & ETFs"
@@ -318,6 +398,75 @@ export default function USStocks({ showToast, onOpenTransactions }) {
               sortNamespace="us-rsu"
             />
           </div>
+              )}
+
+              {holdingFilter === 'all' && pastHoldings.length > 0 && (
+                <div className="table-scroll us-past-holdings">
+                  <h3 className="us-section-title">Past Holdings</h3>
+                  <table className="holdings-table holdings-table--us">
+                    <thead>
+                      <tr>
+                        <th>Company</th>
+                        <th className="right">Avg Cost</th>
+                        <th className="right">Invested</th>
+                        <th className="right">Realized P&amp;L</th>
+                        <th className="right">Realized %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pastHoldings.map((s) => (
+                        <tr key={s.id} className="holdings-row--past">
+                          <td className="cell-company">
+                            <div className="cell-company-symbol">{s.symbol}</div>
+                            <div className="cell-company-name">{s.name}</div>
+                          </td>
+                          <td className="right mono">
+                            {s.buyPrice != null ? fmtPrice(s.buyPrice) : '—'}
+                          </td>
+                          <td className="right mono">{fmtPrice(s.totalInvested)}</td>
+                          <td className={`right ${pnlColorClass(s.realizedPnl)}`}>
+                            {s.realizedPnl != null ? formatChange(showInr && usdInr ? s.realizedPnl * usdInr : s.realizedPnl, showInr ? undefined : 'USD') : '—'}
+                          </td>
+                          <td className={`right ${pnlColorClass(s.realizedPct)}`}>
+                            {s.realizedPct != null ? formatPct(s.realizedPct) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {subTab === 'irr' && (
+            <IrrTable
+              holdings={stocks}
+              assetType="usStock"
+              windowedXirr={windowedXirr}
+              loading={windowedLoading}
+              formatPrice={fmtPrice}
+              getQty={(h) => h.qty}
+              getLabel={(h) => h.symbol}
+              getPrice={(h) => h.currentPrice}
+              usdInr={usdInr}
+            />
+          )}
+
+          {subTab === 'market' && (
+            <MarketDataTable holdings={stocks} assetType="usStock" formatPrice={fmtPrice} />
+          )}
+
+          {subTab === 'pnl' && (
+            <HoldingsPnlChart
+              transactions={transactions}
+              assetType="usStock"
+              liveCurrentValue={showInr && usdInr ? liveCurrentInr : totals.totalCurrent}
+              liveInvestedValue={showInr && usdInr ? liveInvestedInr : totals.totalInvested}
+              usdInr={showInr ? usdInr : null}
+              currency={showInr && usdInr ? 'INR' : 'USD'}
+            />
+          )}
         </div>
       )}
 

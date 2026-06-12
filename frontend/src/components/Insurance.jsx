@@ -6,11 +6,17 @@ import SummaryBar from './SummaryBar'
 import FilterBar from './FilterBar'
 import InsuranceDetailModal from './InsuranceDetailModal'
 import { formatINR, formatDate } from '../utils/formatters'
-import { daysUntilRenewal, summarizeInsurance } from '../utils/insuranceMetrics'
+import { daysUntilRenewal, summarizeInsurance, INS_TYPE_LABEL } from '../utils/insuranceMetrics'
 
 const TYPE_META = {
-  health: { label: 'Health Insurance', icon: '🏥', color: 'var(--blue)' },
-  term:   { label: 'Term Insurance',   icon: '🛡️', color: 'var(--green)' },
+  health:      { label: 'Health Insurance',   icon: '🏥', color: 'var(--blue)' },
+  term:        { label: 'Term Insurance',     icon: '🛡️', color: 'var(--green)' },
+  ulip:        { label: 'ULIP',               icon: '📈', color: 'var(--blue)' },
+  endowment:   { label: 'Endowment',          icon: '📋', color: 'var(--text-2)' },
+  vehicle:     { label: 'Vehicle Insurance',  icon: '🚗', color: 'var(--text-2)' },
+  home:        { label: 'Home Insurance',     icon: '🏠', color: 'var(--text-2)' },
+  travel:      { label: 'Travel Insurance',   icon: '✈️', color: 'var(--text-2)' },
+  other:       { label: 'Other Insurance',    icon: '📄', color: 'var(--text-3)' },
 }
 
 function RenewalChip({ dateStr }) {
@@ -127,6 +133,17 @@ export default function Insurance({ showToast }) {
 
   const health = useMemo(() => filtered.filter((p) => p.type === 'health'), [filtered])
   const term   = useMemo(() => filtered.filter((p) => p.type === 'term'),   [filtered])
+  const others = useMemo(() => filtered.filter((p) => p.type !== 'health' && p.type !== 'term'), [filtered])
+
+  // Group other-type policies by type for section rendering
+  const otherGroups = useMemo(() => {
+    const map = {}
+    for (const p of others) {
+      if (!map[p.type]) map[p.type] = []
+      map[p.type].push(p)
+    }
+    return map
+  }, [others])
 
   const summary = useMemo(() => summarizeInsurance(policies), [policies])
 
@@ -195,7 +212,9 @@ export default function Insurance({ showToast }) {
               {
                 label: 'Policies',
                 value: String(policies.length),
-                sub: `${summary.healthCount} health · ${summary.termCount} term`,
+                sub: summary.typePills.length
+                  ? summary.typePills.map((p) => `${p.count} ${(INS_TYPE_LABEL[p.type] ?? p.type).toLowerCase()}`).join(' · ')
+                  : null,
               },
             ]}
           />
@@ -233,6 +252,23 @@ export default function Insurance({ showToast }) {
               addLabel="+ Add Term"
               emptyMessage="No term insurance policies yet."
             />
+            {Object.entries(otherGroups).map(([type, list]) => {
+              const meta = TYPE_META[type] ?? { label: INS_TYPE_LABEL[type] ?? type, icon: '📄' }
+              return (
+                <PolicySection
+                  key={type}
+                  title={meta.label}
+                  icon={meta.icon}
+                  policies={list}
+                  onEdit={setEditPolicy}
+                  onDelete={setDeletePolicy}
+                  onOpenDetail={setDetailPolicy}
+                  onAdd={() => openAdd(type)}
+                  addLabel={`+ Add ${meta.label}`}
+                  emptyMessage={`No ${meta.label.toLowerCase()} policies yet.`}
+                />
+              )
+            })}
           </div>
         </div>
       )}
