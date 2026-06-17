@@ -387,11 +387,25 @@ export default function Dashboard() {
   }
 
   const grandPnlClr = pnlColorClass(t.grandPnl)
+  const otherSubSegments = useMemo(() => {
+    const byType = {}
+    for (const a of assets) {
+      const type = a.type || 'Other'
+      const inv = a.investedAmount || 0
+      if (inv <= 0) continue
+      byType[type] = (byType[type] || 0) + inv
+    }
+    return Object.entries(byType).map(([type, value]) => ({
+      label: type,
+      value,
+    }))
+  }, [assets])
+
   const allocSegments = [
     { label: 'Indian Stocks', value: t.inInvested, color: ALLOC_COLORS['Indian Stocks'] },
     { label: 'US Stocks', value: t.usInvestedINR ?? t.usInvestedUSD, color: ALLOC_COLORS['US Stocks'] },
     { label: 'Mutual Funds', value: t.mfInvested, color: ALLOC_COLORS['Mutual Funds'] },
-    { label: 'Other Assets', value: t.otInvested, color: ALLOC_COLORS['Other Assets'] },
+    { label: 'Other Assets', value: t.otInvested, color: ALLOC_COLORS['Other Assets'], expandable: true, subSegments: otherSubSegments },
   ].filter((s) => s.value > 0)
 
   return (

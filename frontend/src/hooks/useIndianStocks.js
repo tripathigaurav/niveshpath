@@ -56,6 +56,7 @@ export function useIndianStocks() {
       date: entry.buyDate,
       holdingId: entry.id,
     })
+    notifyDataChanged()
   }, [])
 
   const removeStock = useCallback((id) => {
@@ -76,6 +77,7 @@ export function useIndianStocks() {
         holdingId: removed.id,
       })
     }
+    notifyDataChanged()
   }, [])
 
   const updateStock = useCallback((id, data) => {
@@ -99,6 +101,7 @@ export function useIndianStocks() {
       logAudit('update', 'indianStock', id, before, updated.find((s) => s.id === id))
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const refreshPrices = useCallback(async () => {

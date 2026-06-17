@@ -132,23 +132,11 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
           title="Dashboard"
           type="button"
         >
-          <svg viewBox="0 0 34 28" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="28">
-            <defs>
-              <linearGradient id="np-bar" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor="#1e3a8a" />
-                <stop offset="100%" stopColor="#3b82f6" />
-              </linearGradient>
-            </defs>
-            <rect x="1"  y="17" width="6.5" height="10" rx="1.5" fill="url(#np-bar)" />
-            <rect x="10" y="10" width="6.5" height="17" rx="1.5" fill="url(#np-bar)" />
-            <rect x="19" y="3"  width="6.5" height="24" rx="1.5" fill="url(#np-bar)" />
-            <path d="M 4.25 17 C 6 12 10 10 13.25 10 C 16.5 10 19 6 22.25 3" stroke="#3b82f6" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-            <path d="M 27 1 L 22.5 3 L 25 7" stroke="#3b82f6" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <div className={styles.logoWordmark}>
-            <span className={styles.logoHindi}>निवेश</span>
-            <span className={styles.logoPath}>Path</span>
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}logo-full.png`}
+            alt="निवेश Path"
+            className={styles.logoImg}
+          />
         </button>
 
         {/* Center — main tabs + More */}
@@ -204,10 +192,11 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
         <div className={styles.navDrawerOverlay} onClick={() => setDrawerOpen(false)}>
           <nav className={styles.navDrawer} ref={drawerRef} onClick={(e) => e.stopPropagation()}>
             <div className={styles.navDrawerHeader}>
-              <div className={styles.logoWordmark}>
-                <span className={styles.logoHindi}>निवेश</span>
-                <span className={styles.logoPath}>Path</span>
-              </div>
+              <img
+                src={`${import.meta.env.BASE_URL}logo-full.png`}
+                alt="निवेश Path"
+                className={styles.logoImg}
+              />
               <button
                 className={styles.navDrawerClose}
                 onClick={() => setDrawerOpen(false)}

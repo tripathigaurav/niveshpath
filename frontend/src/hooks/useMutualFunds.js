@@ -52,6 +52,7 @@ export function useMutualFunds() {
       date: entry.buyDate,
       holdingId: entry.id,
     })
+    notifyDataChanged()
   }, [])
 
   const removeFund = useCallback((id) => {
@@ -72,6 +73,7 @@ export function useMutualFunds() {
         holdingId: removed.id,
       })
     }
+    notifyDataChanged()
   }, [])
 
   const updateFund = useCallback((id, data) => {
@@ -93,6 +95,7 @@ export function useMutualFunds() {
       logAudit('update', 'mutualFund', id, before, updated.find((f) => f.id === id))
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const refreshNAVs = useCallback(async () => {

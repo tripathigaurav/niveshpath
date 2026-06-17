@@ -1,13 +1,8 @@
-<svg viewBox="0 0 34 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="fg-bar" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#1e3a8a"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
-    </linearGradient>
-  </defs>
-  <rect x="1"  y="17" width="6.5" height="10" rx="1.5" fill="url(#fg-bar)"/>
-  <rect x="10" y="10" width="6.5" height="17" rx="1.5" fill="url(#fg-bar)"/>
-  <rect x="19" y="3"  width="6.5" height="24" rx="1.5" fill="url(#fg-bar)"/>
-  <path d="M 4.25 17 C 6 12 10 10 13.25 10 C 16.5 10 19 6 22.25 3" stroke="#3b82f6" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-  <path d="M 27 1 L 22.5 3 L 25 7" stroke="#3b82f6" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="18" cy="18" r="14.5" fill="white" stroke="#cbd5e1" stroke-width="0.75"/>
+  <path d="M 7.2 8.5 A 13.5 13.5 0 1 1 10 28.5" stroke="#2563eb" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <polygon points="5,6 7.5,9.5 10.5,7" fill="#2563eb"/>
+  <rect x="11" y="20.5" width="3.5" height="7" rx="0.8" fill="#1e3a8a"/>
+  <rect x="16.25" y="16" width="3.5" height="11.5" rx="0.8" fill="#1e3a8a"/>
+  <rect x="21.5" y="11" width="3.5" height="16.5" rx="0.8" fill="#1e3a8a"/>
 </svg>

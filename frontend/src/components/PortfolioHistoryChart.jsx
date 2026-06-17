@@ -34,7 +34,7 @@ export default function PortfolioHistoryChart({
   holdings = null,
   pricesStale = false,
 }) {
-  const [range, setRange] = useState('1Y')
+  const [range, setRange] = useState('ALL')
   const [viewMode, setViewMode] = useState('value')
   const [allPoints, setAllPoints] = useState([])
   const [historySource, setHistorySource] = useState('ledger')

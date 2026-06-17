@@ -27,27 +27,11 @@
   outline-offset: 3px;
 }
 .navbarLogo:focus-visible { outline: 2px solid var(--accent); }
-.navbarLogo svg { width: 34px; height: 28px; flex-shrink: 0; }
-
-.logoWordmark {
-  display: flex;
-  align-items: baseline;
-  gap: 0px;
-  line-height: 1;
-}
-.logoHindi {
-  font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
-  font-weight: 800;
-  font-size: 21px;
-  color: var(--logo-primary, #0f172a);
-  letter-spacing: -0.01em;
-}
-.logoPath {
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--logo-accent, #3b82f6);
-  letter-spacing: 0.02em;
-  margin-left: 4px;
+.logoImg {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 /* Center */

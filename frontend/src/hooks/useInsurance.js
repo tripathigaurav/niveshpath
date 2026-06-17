@@ -1,10 +1,17 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
 import { logAudit } from '../utils/auditTrail'
+import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useInsurance() {
   const [policies, setPolicies] = useState(() => storage.getInsurance())
+
+  useEffect(() => {
+    const sync = () => setPolicies(storage.getInsurance())
+    window.addEventListener(PT_DATA_CHANGED, sync)
+    return () => window.removeEventListener(PT_DATA_CHANGED, sync)
+  }, [])
 
   const addPolicy = useCallback((data) => {
     const entry = {
@@ -23,6 +30,7 @@ export function useInsurance() {
       logAudit('create', 'insurance', entry.id, null, entry)
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const removePolicy = useCallback((id) => {
@@ -33,6 +41,7 @@ export function useInsurance() {
       logAudit('delete', 'insurance', id, before, null)
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const updatePolicy = useCallback((id, data) => {
@@ -56,6 +65,7 @@ export function useInsurance() {
       logAudit('update', 'insurance', id, before, updated.find((p) => p.id === id))
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   return { policies, addPolicy, removePolicy, updatePolicy }

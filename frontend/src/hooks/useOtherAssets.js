@@ -1,10 +1,17 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { storage } from '../utils/storage'
 import { logAudit } from '../utils/auditTrail'
+import { notifyDataChanged, PT_DATA_CHANGED } from './useNotifications'
 
 export function useOtherAssets() {
   const [assets, setAssets] = useState(() => storage.getOtherAssets())
+
+  useEffect(() => {
+    const sync = () => setAssets(storage.getOtherAssets())
+    window.addEventListener(PT_DATA_CHANGED, sync)
+    return () => window.removeEventListener(PT_DATA_CHANGED, sync)
+  }, [])
 
   const addAsset = useCallback((data) => {
     const entry = {
@@ -22,6 +29,7 @@ export function useOtherAssets() {
       logAudit('create', 'otherAsset', entry.id, null, entry)
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const removeAsset = useCallback((id) => {
@@ -32,6 +40,7 @@ export function useOtherAssets() {
       logAudit('delete', 'otherAsset', id, before, null)
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   const updateAsset = useCallback((id, data) => {
@@ -54,6 +63,7 @@ export function useOtherAssets() {
       logAudit('update', 'otherAsset', id, before, updated.find((a) => a.id === id))
       return updated
     })
+    notifyDataChanged()
   }, [])
 
   return { assets, addAsset, removeAsset, updateAsset }

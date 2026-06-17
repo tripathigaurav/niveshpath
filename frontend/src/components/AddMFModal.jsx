@@ -17,11 +17,36 @@ export default function AddMFModal({ initial, onSave, onClose }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [errors, setErrors] = useState({})
   const [activeIdx, setActiveIdx] = useState(-1)
+  const [liveNAV, setLiveNAV] = useState(null)
+  const [liveNAVDate, setLiveNAVDate] = useState(null)
+  const [liveNAVLoading, setLiveNAVLoading] = useState(false)
   const searchRef = useRef(null)
   const modalRef = useRef(null)
   const debouncedQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
 
   useFocusTrap(modalRef, true, onClose)
+
+  useEffect(() => {
+    const code = String(form.schemeCode || '').trim()
+    if (!code) {
+      setLiveNAV(null)
+      setLiveNAVDate(null)
+      return
+    }
+    let cancelled = false
+    setLiveNAVLoading(true)
+    api.getMfNav(code)
+      .then((data) => {
+        if (cancelled) return
+        setLiveNAV(data.nav ?? null)
+        setLiveNAVDate(data.date ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) { setLiveNAV(null); setLiveNAVDate(null) }
+      })
+      .finally(() => { if (!cancelled) setLiveNAVLoading(false) })
+    return () => { cancelled = true }
+  }, [form.schemeCode])
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < MIN_SEARCH_LEN) {
@@ -159,6 +184,17 @@ export default function AddMFModal({ initial, onSave, onClose }) {
               {errors.schemeName && <div className="error-text">{errors.schemeName}</div>}
               {form.schemeCode && (
                 <div className="form-hint">Scheme Code: {form.schemeCode}</div>
+              )}
+              {liveNAVLoading && (
+                <div className="form-hint form-live-price">Fetching current NAV...</div>
+              )}
+              {!liveNAVLoading && liveNAV != null && (
+                <div className="form-hint form-live-price">
+                  Current NAV: <strong>₹{liveNAV.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</strong>
+                  {liveNAVDate && (
+                    <span className="form-live-price-time"> · as of {liveNAVDate}</span>
+                  )}
+                </div>
               )}
             </div>
 

@@ -415,3 +415,41 @@
     min-height: 260px;
   }
 }
+
+/* Category chip toggles for portfolio value chart */
+.pvc-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.pvc-cat-chip {
+  background: var(--surface-2, #f3f4f6);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  line-height: 1.4;
+}
+.pvc-cat-chip:hover:not(:disabled) {
+  background: var(--surface-3, #e5e7eb);
+  color: var(--text);
+}
+.pvc-cat-chip--active {
+  background: var(--blue, #3b82f6);
+  border-color: var(--blue, #3b82f6);
+  color: #fff;
+}
+.pvc-cat-chip--active:hover:not(:disabled) {
+  background: var(--blue-dark, #2563eb);
+  border-color: var(--blue-dark, #2563eb);
+  color: #fff;
+}
+.pvc-cat-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

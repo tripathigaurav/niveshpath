@@ -17,11 +17,35 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
   const [showDropdown, setShowDropdown] = useState(false)
   const [errors, setErrors] = useState({})
   const [activeIdx, setActiveIdx] = useState(-1)
+  const [livePrice, setLivePrice] = useState(null)
+  const [livePriceTime, setLivePriceTime] = useState(null)
+  const [livePriceLoading, setLivePriceLoading] = useState(false)
   const searchRef = useRef(null)
   const modalRef = useRef(null)
   const debouncedQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
 
   useFocusTrap(modalRef, true, onClose)
+
+  useEffect(() => {
+    if (!form.symbol || form.symbol.length < 2) {
+      setLivePrice(null)
+      setLivePriceTime(null)
+      return
+    }
+    let cancelled = false
+    setLivePriceLoading(true)
+    api.getStockPrice(form.symbol)
+      .then((data) => {
+        if (cancelled) return
+        setLivePrice(data.price ?? data.regularMarketPrice ?? null)
+        setLivePriceTime(new Date())
+      })
+      .catch(() => {
+        if (!cancelled) { setLivePrice(null); setLivePriceTime(null) }
+      })
+      .finally(() => { if (!cancelled) setLivePriceLoading(false) })
+    return () => { cancelled = true }
+  }, [form.symbol])
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < MIN_SEARCH_LEN) {
@@ -186,6 +210,17 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
                 )}
               </div>
               {errors.symbol && <div className="error-text">{errors.symbol}</div>}
+              {livePriceLoading && (
+                <div className="form-hint form-live-price">Fetching current price...</div>
+              )}
+              {!livePriceLoading && livePrice != null && (
+                <div className="form-hint form-live-price">
+                  Current Price: <strong>{mode === 'indian' ? '₹' : '$'}{livePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  {livePriceTime && (
+                    <span className="form-live-price-time"> · {livePriceTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
