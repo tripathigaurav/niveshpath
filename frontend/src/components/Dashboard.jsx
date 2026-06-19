@@ -336,7 +336,7 @@ function DashboardFooter({ lastUpdated, pricesStale }) {
   )
 }
 
-export default function Dashboard({ onOpenRebalance } = {}) {
+export default function Dashboard() {
   const { inStocks, usStocks, funds, assets, policies, usdInr, inUpdated, totals: t, pricesStale } =
     useDashboardPortfolio()
   const hasInvestments =
@@ -543,16 +543,7 @@ export default function Dashboard({ onOpenRebalance } = {}) {
                   centerLabel="Invested"
                   centerValue={formatINR(t.grandInvested, true)}
                 />
-                {onOpenRebalance && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    style={{ marginTop: 8 }}
-                    onClick={onOpenRebalance}
-                  >
-                    ⚖ Rebalance
-                  </button>
-                )}
+
               </div>
             )}
             <UpcomingEventsCard />

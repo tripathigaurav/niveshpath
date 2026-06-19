@@ -4,6 +4,7 @@ import { getInitials } from '../utils/initials'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import ConfirmDialog from './ConfirmDialog'
 import { CATEGORIES } from '../utils/portfolioBackup'
+import { exportPortfolioToExcel } from '../utils/excelExport'
 import styles from './ProfileModal.module.css'
 
 const AVATAR_COLORS = [
@@ -338,6 +339,17 @@ export default function ProfileModal({
                       onChange={handleCatFileChange}
                     />
                   </div>
+                </div>
+                <div className={`${styles.profileBackupRow} ${styles.profileBackupRowDemo}`}>
+                  <span className={styles.profileBackupRowLabel}>Excel</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={exportPortfolioToExcel}
+                    title="Export portfolio as Excel (.xlsx) with formulas"
+                  >
+                    📊 Export .xlsx
+                  </button>
                 </div>
                 <div className={`${styles.profileBackupRow} ${styles.profileBackupRowDemo}`}>
                   <span className={styles.profileBackupRowLabel}>Demo</span>

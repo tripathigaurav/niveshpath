@@ -228,7 +228,7 @@ export default function App() {
 
     const content = (() => {
       switch (activeTab) {
-        case 'dashboard':    return <Dashboard {...props} onOpenRebalance={() => setRebalanceOpen(true)} />
+        case 'dashboard':    return <Dashboard {...props} />
         case 'indianStocks': return <IndianStocks {...props}
           onOpenTransactions={() => openTxFor('indianStock')} />
         case 'usStocks':     return <USStocks {...props}

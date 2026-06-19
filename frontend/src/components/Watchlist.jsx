@@ -165,9 +165,42 @@ export default function Watchlist({ showToast }) {
     }
   }, [showToast])
 
+  // Re-compute prices when items change or portfolio data updates
+  const [priceRevision, setPriceRevision] = useState(0)
+  const [livePrices, setLivePrices] = useState({})
+  useEffect(() => {
+    const bump = () => setPriceRevision((r) => r + 1)
+    window.addEventListener('pt_data_changed', bump)
+    return () => window.removeEventListener('pt_data_changed', bump)
+  }, [])
+
+  // Fetch live prices from API for items not found in portfolio
+  useEffect(() => {
+    const missing = items.filter((it) => getCurrentPriceFromPortfolio(it.symbol, it.assetType) == null && it.symbol)
+    if (missing.length === 0) return
+    const symbols = missing.map((it) => it.symbol)
+    api.getBatchPrices(symbols)
+      .then((res) => {
+        const map = {}
+        if (Array.isArray(res)) {
+          res.forEach((r) => { if (r.price != null) map[r.symbol] = r.price })
+        } else if (res && typeof res === 'object') {
+          Object.entries(res).forEach(([sym, data]) => {
+            const p = typeof data === 'number' ? data : data?.price ?? data?.regularMarketPrice
+            if (p != null) map[sym] = p
+          })
+        }
+        setLivePrices((prev) => ({ ...prev, ...map }))
+      })
+      .catch(() => { /* backend down, skip */ })
+  }, [items, priceRevision])
+
   const enriched = useMemo(
-    () => items.map((item) => ({ ...item, currentPrice: getCurrentPriceFromPortfolio(item.symbol, item.assetType) })),
-    [items]
+    () => items.map((item) => ({
+      ...item,
+      currentPrice: getCurrentPriceFromPortfolio(item.symbol, item.assetType) ?? livePrices[item.symbol] ?? null,
+    })),
+    [items, priceRevision, livePrices]
   )
 
   const persist = useCallback((next) => {
@@ -330,27 +363,28 @@ export default function Watchlist({ showToast }) {
             const status = targetStatus(item.currentPrice, item.targetPrice)
             const isEditing = editId === item.id
             return (
-              <div key={item.id} className={`watchlist-card card ${status === 'hit' ? 'watchlist-card--hit' : ''}`}>
+              <div key={item.id} className={`watchlist-card card ${status === 'hit' ? 'watchlist-card--hit' : ''} ${isEditing ? 'watchlist-card--editing' : ''}`}>
                 {isEditing ? (
                   <div className="watchlist-edit">
-                    <div className="watchlist-form-grid">
+                    <div className="watchlist-edit-header">
+                      <span className="watchlist-symbol">{item.symbol}</span>
+                      {item.exchange && <span className="badge">{item.exchange}</span>}
+                      <span className="watchlist-edit-cur">
+                        Current: {item.currentPrice != null
+                          ? item.assetType === 'usStock' ? formatUSD(item.currentPrice) : formatINR(item.currentPrice)
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="watchlist-edit-grid">
                       <div className="form-group">
                         <label className="form-label">Name</label>
                         <input className="form-input" type="text" value={editDraft.name}
                           onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />
                       </div>
-                      {EXCHANGES_BY_TYPE[item.assetType]?.length > 0 && (
-                        <div className="form-group">
-                          <label className="form-label">Exchange</label>
-                          <select className="form-select" value={editDraft.exchange}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, exchange: e.target.value }))}>
-                            {EXCHANGES_BY_TYPE[item.assetType].map((ex) => <option key={ex} value={ex}>{ex}</option>)}
-                          </select>
-                        </div>
-                      )}
                       <div className="form-group">
-                        <label className="form-label">{TARGET_LABEL[item.assetType]}</label>
+                        <label className="form-label">Target</label>
                         <input className="form-input" type="number" min="0" step="any" value={editDraft.targetPrice}
+                          placeholder={item.currentPrice != null ? String(item.currentPrice) : ''}
                           onChange={(e) => setEditDraft((d) => ({ ...d, targetPrice: e.target.value }))} />
                       </div>
                       <div className="form-group">

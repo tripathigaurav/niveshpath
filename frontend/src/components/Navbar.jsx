@@ -133,7 +133,7 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
           type="button"
         >
           <img
-            src={`${import.meta.env.BASE_URL}logo-full.png`}
+            src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'logo-full-dark.png' : 'logo-full.png'}`}
             alt="निवेश Path"
             className={styles.logoImg}
           />
@@ -193,7 +193,7 @@ export default function Navbar({ activeTab, onTabChange, settings, onProfileOpen
           <nav className={styles.navDrawer} ref={drawerRef} onClick={(e) => e.stopPropagation()}>
             <div className={styles.navDrawerHeader}>
               <img
-                src={`${import.meta.env.BASE_URL}logo-full.png`}
+                src={`${import.meta.env.BASE_URL}${theme === 'dark' ? 'logo-full-dark.png' : 'logo-full.png'}`}
                 alt="निवेश Path"
                 className={styles.logoImg}
               />

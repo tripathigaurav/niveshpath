@@ -11,7 +11,7 @@ export default function UpcomingEventList({ events, className = 'dash-events-lis
       {events.map((ev) => (
         <li key={`${ev.symbol}-${ev.date}-${ev.type}`} className="dash-events-item">
           <span className={`dash-events-icon dash-events-icon--${ev.type}`} aria-hidden="true">
-            {ev.region === 'US' ? '🇺🇸' : '🇮🇳'}
+            {ev.region === 'US' ? '🇺🇸' : ev.region === 'MF' ? '💰' : ev.region === 'OTHER' ? '📋' : '🇮🇳'}
           </span>
           <div className="dash-events-body">
             <span className="dash-events-symbol">{ev.symbol}</span>

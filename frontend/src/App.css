@@ -5708,7 +5708,32 @@ thead th { min-height: 44px; }
 }
 
 /* Inline edit form inside a card */
-.watchlist-edit { grid-column: 1 / -1; }
+.watchlist-card--editing {
+  display: block;
+}
+.watchlist-edit {
+  display: flex;
+  flex-direction: column;
+}
+.watchlist-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+.watchlist-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.watchlist-edit-cur {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
 
 @media (max-width: 600px) {
   .watchlist-card {
@@ -5722,6 +5747,7 @@ thead th { min-height: 44px; }
   .watchlist-card-prices { justify-content: flex-start; }
   .watchlist-price-col   { align-items: flex-start; }
   .watchlist-form-grid   { grid-template-columns: 1fr; }
+  .watchlist-edit-grid   { grid-template-columns: 1fr; }
 }
 
 /* ── CSS Tooltip System ─────────────────────────────────────────────────── */

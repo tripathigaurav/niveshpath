@@ -27,6 +27,70 @@ function collectHoldings() {
   return out
 }
 
+function collectOtherAssetEvents(days) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const end = new Date(today)
+  end.setDate(end.getDate() + days)
+  const events = []
+
+  // Other Assets — maturity dates
+  const assets = storage.getOtherAssets()
+  for (const a of assets) {
+    if (!a.maturityDate) continue
+    const d = new Date(`${String(a.maturityDate).slice(0, 10)}T12:00:00`)
+    if (Number.isNaN(d.getTime())) continue
+    if (d >= today && d <= end) {
+      events.push({
+        symbol: a.name,
+        name: a.name,
+        region: 'OTHER',
+        type: 'maturity',
+        date: String(a.maturityDate).slice(0, 10),
+        detail: `${a.type || 'Asset'} maturity`,
+      })
+    }
+  }
+
+  // Insurance — renewal dates
+  const insurance = storage.getInsurance()
+  for (const ins of insurance) {
+    if (!ins.renewalDate) continue
+    const d = new Date(`${String(ins.renewalDate).slice(0, 10)}T12:00:00`)
+    if (Number.isNaN(d.getTime())) continue
+    if (d >= today && d <= end) {
+      events.push({
+        symbol: ins.name || 'Insurance',
+        name: ins.name || 'Insurance',
+        region: 'OTHER',
+        type: 'renewal',
+        date: String(ins.renewalDate).slice(0, 10),
+        detail: `${ins.type || 'Insurance'} renewal`,
+      })
+    }
+  }
+
+  // MF SIPs — next due dates
+  const sips = storage.getSIPs()
+  for (const sip of sips) {
+    if (!sip.active || !sip.nextDate) continue
+    const d = new Date(`${String(sip.nextDate).slice(0, 10)}T12:00:00`)
+    if (Number.isNaN(d.getTime())) continue
+    if (d >= today && d <= end) {
+      events.push({
+        symbol: sip.fundName || sip.symbol || 'SIP',
+        name: sip.fundName || sip.symbol || 'SIP',
+        region: 'MF',
+        type: 'sip',
+        date: String(sip.nextDate).slice(0, 10),
+        detail: `SIP ₹${sip.amount || ''}`,
+      })
+    }
+  }
+
+  return events
+}
+
 /** @typedef {'offline'|'outdated'|'staticHost'|'generic'} EventsErrorKind */
 
 export function useUpcomingEvents(days = 30) {
@@ -41,8 +105,17 @@ export function useUpcomingEvents(days = 30) {
     if (isStaticWithoutApi) return undefined
     let cancelled = false
     const holdings = collectHoldings()
-    if (!holdings.length) {
+    const otherAssetEvents = collectOtherAssetEvents(days)
+
+    if (!holdings.length && !otherAssetEvents.length) {
       setEvents([])
+      setLoading(false)
+      return undefined
+    }
+
+    // If we only have other-asset events (no stocks), skip the API call
+    if (!holdings.length) {
+      setEvents(otherAssetEvents.sort((a, b) => a.date.localeCompare(b.date)))
       setLoading(false)
       return undefined
     }
@@ -52,12 +125,21 @@ export function useUpcomingEvents(days = 30) {
     setErrorKind(null)
     fetchUpcomingEvents(holdings, days)
       .then((res) => {
-        if (!cancelled) setEvents(res.events || [])
+        if (!cancelled) {
+          const merged = [...(res.events || []), ...otherAssetEvents]
+            .sort((a, b) => a.date.localeCompare(b.date))
+          setEvents(merged)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
+          // Even on API error, show other-asset maturity events
+          if (otherAssetEvents.length) {
+            setEvents(otherAssetEvents.sort((a, b) => a.date.localeCompare(b.date)))
+          } else {
+            setEvents([])
+          }
           setError(true)
-          setEvents([])
           const msg = String(err?.message || '')
           if (err?.status === 404) {
             setErrorKind('outdated')

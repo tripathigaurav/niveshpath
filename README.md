@@ -60,7 +60,18 @@ cp .env.example .env   # set VITE_API_BASE for static hosting
 npm run build          # output: frontend/dist
 ```
 
-GitHub Pages deploys automatically on push to `main` (see `.github/workflows/deploy.yml`). The static UI needs a reachable Flask API for live prices.
+GitHub Pages deploys automatically on push to `main` (see `.github/workflows/deploy.yml`). The static UI degrades gracefully without the Flask API — market strip and upcoming events are hidden, and portfolio P&L uses only assets with a known current value.
+
+To wire a hosted Flask API to the deployed frontend, set `VITE_API_BASE` as a GitHub Actions secret (e.g. `https://your-api.railway.app/api`). The build will embed it automatically.
+
+**Hosting options for the Flask backend:**
+
+| Platform | Free | Always-on | Docker needed |
+|----------|------|-----------|---------------|
+| Railway | $5 credit/mo | ✅ | No |
+| Koyeb | 1 free instance | ✅ | No |
+| Render | 750 hrs/mo | ❌ (sleeps) | No |
+| Fly.io | 3 shared VMs | ✅ | Auto-detected |
 
 ---
 
@@ -73,8 +84,8 @@ GitHub Pages deploys automatically on push to `main` (see `.github/workflows/dep
 | **Indian stocks** | Yahoo Finance (`.NS` / `.BO`) | NSE/BSE exchange toggle, ETFs, day P&L |
 | **US stocks** | Yahoo Finance | USD/INR, ESPP/RSU sections |
 | **Mutual funds** | AMFI NAV | Scheme search, NAV refresh |
-| **Other assets** | Manual | FD, PPF, EPF, NPS, gold, crypto, etc. |
-| **Insurance** | Manual | Policies, renewal tracking |
+| **Other assets** | Manual | 9 types (FD, PPF, EPF, NPS, real estate, gold, bonds/SGB, crypto, other); FD/PPF/EPF formula-based P&L, null current-value guard |
+| **Insurance** | Manual | 8 policy types, renewal tracking, per-type extra fields |
 | **Watchlist** | Live quotes | Price alerts |
 
 ### Holdings views (Indian / US / MF)
@@ -92,10 +103,12 @@ Indian stocks: **NSE | BSE** toggle on Basic, IRR, and Market Data (MF uses AMFI
 
 ### Dashboard
 
-- Summary bar: invested, current value, today's P&L, notional gain, portfolio XIRR
 - Category cards with allocation donut
 - **Portfolio value chart** — Groww/Zerodha-style area chart with range (1D–ALL), ₹/% toggle, breakdown modal
-- Upcoming events, tax estimate (current FY), insurance overview
+- Summary bar: invested, current value, today's P&L, notional gain, portfolio XIRR
+- Insurance card lists every policy with renewal date (colour-coded urgency), cover + premium footer
+- Upcoming events (dividends, earnings) — gracefully hidden on static host
+- Tax estimate (current FY), market strip (hidden on static host)
 
 **Portfolio chart behaviour**
 
@@ -135,7 +148,7 @@ Indian stocks: **NSE | BSE** toggle on Basic, IRR, and Market Data (MF uses AMFI
 | Frontend | React 18, Vite 6, Recharts, Vanilla CSS |
 | Backend | Flask 3.1, yfinance, Flask-Limiter |
 | Storage | localStorage, IndexedDB (`idb`) |
-| Deploy | GitHub Actions → GitHub Pages |
+| Deploy | GitHub Actions → GitHub Pages (static); Railway/Koyeb/Render for Flask API |
 | Tests | Vitest, Testing Library |
 
 ---
@@ -195,6 +208,10 @@ Export backups regularly — clearing site data removes localStorage.
 - [x] Auto-refresh, watchlist, insurance
 - [x] Tax reports, mobile polish, share URL
 - [x] Holdings sub-tabs, windowed XIRR, NSE/BSE toggle, market data tab
+- [x] Other assets: 9 types, type-aware P&L formulas, null current-value guard
+- [x] Insurance: 8 types, per-type extra fields, Dashboard policy list with renewal urgency
+- [x] GitHub Pages deploy with static-host graceful degradation (no market banner, no events error)
+- [x] Dashboard notional P&L fix (pricedInvested denominator, no phantom loss offline)
 
 ---
 
