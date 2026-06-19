@@ -6308,11 +6308,19 @@ thead th { min-height: 44px; }
   .ins-card-name { font-size: 13px; }
   .ins-type-icon { font-size: 18px; }
 
-  /* ── Search dropdown in modals ──────────────────────────────── */
+  /* ── Search in modals: compact → expand on focus ────────────── */
+  .modal .search-wrap .form-input {
+    width: 60%;
+    transition: width 0.2s ease;
+  }
+  .modal .search-wrap .form-input:focus {
+    width: 100%;
+  }
   .modal .search-dropdown {
     max-height: 200px;
-    left: -14px;
-    right: -14px;
+    left: 0;
+    right: 0;
+    width: 100%;
     border-radius: 0 0 10px 10px;
   }
   .search-option { padding: 12px 14px; min-height: 44px; }

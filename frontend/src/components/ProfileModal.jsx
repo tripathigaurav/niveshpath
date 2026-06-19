@@ -162,6 +162,12 @@ export default function ProfileModal({
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <div className={`modal ${styles.profileModal}`} ref={modalRef} onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className={styles.profileCloseBtn}
+            onClick={onClose}
+            aria-label="Close"
+          >×</button>
           <div className={styles.profileHeader}>
             <div className={styles.profileAvatarLg} style={{ background: avatarColor }}>
               {initials}
