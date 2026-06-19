@@ -336,7 +336,7 @@ function DashboardFooter({ lastUpdated, pricesStale }) {
   )
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onOpenRebalance } = {}) {
   const { inStocks, usStocks, funds, assets, policies, usdInr, inUpdated, totals: t, pricesStale } =
     useDashboardPortfolio()
   const hasInvestments =
@@ -537,11 +537,23 @@ export default function Dashboard() {
         <section className="dash-section dash-section--mid">
           <div className="dash-mid-row">
             {allocSegments.length > 0 && (
-              <AllocationDonut
-                segments={allocSegments}
-                centerLabel="Invested"
-                centerValue={formatINR(t.grandInvested, true)}
-              />
+              <div style={{ position: 'relative' }}>
+                <AllocationDonut
+                  segments={allocSegments}
+                  centerLabel="Invested"
+                  centerValue={formatINR(t.grandInvested, true)}
+                />
+                {onOpenRebalance && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 8 }}
+                    onClick={onOpenRebalance}
+                  >
+                    ⚖ Rebalance
+                  </button>
+                )}
+              </div>
             )}
             <UpcomingEventsCard />
           </div>

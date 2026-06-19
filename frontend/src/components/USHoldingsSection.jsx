@@ -5,7 +5,7 @@ import SkeletonRows from './SkeletonRows'
 import PnlBadge from './PnlBadge'
 import { formatUSD, formatINR, formatChange, formatDate } from '../utils/formatters'
 import { calcUsPnl, pnlColorClass } from '../utils/pnl'
-import { calcHoldingXirr, formatXirrDisplay } from '../utils/xirrMetrics'
+import { calcHoldingXirr, formatXirrDisplay, xirrReasonLabel } from '../utils/xirrMetrics'
 import { storage } from '../utils/storage'
 import { USStockCard, HoldingCardSkeleton, HoldingCardsEmpty } from './HoldingCards'
 
@@ -23,8 +23,10 @@ function makeGetSortVal(usdInr) {
       case 'ltp':
       case 'currentPrice':
         return stock.currentPrice
-      case 'xirr':
-        return calcHoldingXirr(stock, 'usStock', storage.getTransactions(), { usdInr })
+      case 'xirr': {
+        const r = calcHoldingXirr(stock, 'usStock', storage.getTransactions(), { usdInr })
+        return r?.value ?? null
+      }
       default: return stock[key]
     }
   }
@@ -85,7 +87,10 @@ function StockRow({ stock, usdInr, showInr, xirr, onEdit, onDelete, showEtfBadge
           <PnlBadge value={pnlUSD} pct={pnlPct} />
         </td>
         <td className="right mono">
-          <span className={xirr != null ? pnlColorClass(xirr) : 'text-3'}>
+          <span
+            className={xirr?.value != null ? pnlColorClass(xirr.value) : 'text-3'}
+            title={xirr?.reason ? xirrReasonLabel(xirr) : undefined}
+          >
             {formatXirrDisplay(xirr)}
           </span>
         </td>

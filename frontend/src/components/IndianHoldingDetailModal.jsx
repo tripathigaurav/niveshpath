@@ -2,7 +2,7 @@ import { useId, useRef, useState } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useIndianHoldingDetail } from '../hooks/useIndianHoldingDetail'
 import { formatINR, formatPct, formatChange, formatDate } from '../utils/formatters'
-import { formatXirrDisplay } from '../utils/xirrMetrics'
+import { formatXirrDisplay, xirrReasonLabel } from '../utils/xirrMetrics'
 import { pnlColorClass } from '../utils/pnl'
 import HoldingTransactionTable from './HoldingTransactionTable'
 
@@ -136,7 +136,10 @@ export default function IndianHoldingDetailModal({
               </div>
               <div className="holding-pnl-item">
                 <span className="holding-pnl-label">XIRR</span>
-                <span className={`holding-pnl-val ${pnlColorClass(pnl.xirr)}`}>
+                <span
+                  className={`holding-pnl-val ${pnlColorClass(pnl.xirr?.value)}`}
+                  title={xirrReasonLabel(pnl.xirr) || undefined}
+                >
                   {formatXirrDisplay(pnl.xirr)}
                 </span>
               </div>

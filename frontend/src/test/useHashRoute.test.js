@@ -8,7 +8,7 @@ describe('useHashRoute', () => {
 
   test('defaults to indianStocks when no hash', () => {
     const { result } = renderHook(() => useHashRoute())
-    expect(result.current[0]).toBe('indianStocks')
+    expect(result.current[0]).toBe('dashboard')
   })
 
   test('reads hash on mount', () => {
@@ -27,6 +27,6 @@ describe('useHashRoute', () => {
   test('unknown hash falls back to default', () => {
     window.location.hash = '#/nonexistent'
     const { result } = renderHook(() => useHashRoute())
-    expect(result.current[0]).toBe('indianStocks')
+    expect(result.current[0]).toBe('dashboard')
   })
 })

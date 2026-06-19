@@ -104,14 +104,14 @@ function computeSipXirr(sip, allTransactions) {
   if (terminalValue == null) terminalValue = totalInvested
 
   const sipFlows = [...flows, { date: today, amount: terminalValue }]
-  const sipXirr = calcXirr(sipFlows)
+  const sipXirr = calcXirr(sipFlows).value
 
   // Lump-sum: one outflow at start, same terminal value today
   const lumpFlows = [
     { date: sip.startDate, amount: -totalInvested },
     { date: today, amount: terminalValue },
   ]
-  const lumpXirr = calcXirr(lumpFlows)
+  const lumpXirr = calcXirr(lumpFlows).value
 
   return { sipXirr, lumpXirr, totalInvested }
 }

@@ -5,19 +5,27 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta
 
+import logging
+
 import requests
 import yfinance as yf
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from markupsafe import escape
 
 app = Flask(__name__)
+log = logging.getLogger(__name__)
 
 def _cors_origins():
     env = os.getenv("CORS_ORIGINS", "").strip()
     if env:
         return [o.strip() for o in env.split(",") if o.strip()]
+    flask_env = os.getenv("FLASK_ENV", "development").lower()
+    if flask_env == "production":
+        log.warning("CORS_ORIGINS not set in production — rejecting cross-origin requests")
+        return []
     # Default dev origins (5199 = निवेश Path Vite default; 5173 = stock Vite default)
     ports = (5199, 5174, 5173, 3000)
     origins = []
@@ -28,12 +36,21 @@ def _cors_origins():
 
 
 CORS(app, origins=_cors_origins())
+
+
+@app.after_request
+def _set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 limiter = Limiter(get_remote_address, app=app, default_limits=["60 per minute"])
 
 # ─── Config constants ─────────────────────────────────────────────────────────
 
 MARKET_CACHE_TTL    = 30          # seconds
 NAV_CACHE_TTL       = 86_400      # seconds (24 h)
+FUNDAMENTALS_CACHE_TTL = 3600     # seconds (1 h)
 OVERVIEW_MAX_WORKERS = 8
 MIN_SEARCH_LEN      = 2
 STOCK_SEARCH_LIMIT  = 8
@@ -63,6 +80,7 @@ _market_cache: dict = {}
 _market_cache_time: float = 0
 _nav_cache: dict = {}
 _nav_cache_time: float = 0
+_fundamentals_cache: dict = {}   # symbol → { data, ts }
 _cache_lock = threading.Lock()
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -188,6 +206,7 @@ def fetch_ticker_data(symbol: str) -> dict:
 
 
 @app.route("/api/stock/price", methods=["GET"])
+@limiter.limit("60 per minute")
 def get_single_price():
     symbol = request.args.get("symbol", "").strip()
     if not symbol:
@@ -246,10 +265,12 @@ def search_stocks():
             })
         return jsonify(results[:STOCK_SEARCH_LIMIT])
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        log.exception("Stock search failed for q=%s", query)
+        return jsonify({"error": "Search failed — please try again"}), 500
 
 
 @app.route("/api/stock/actions", methods=["GET"])
+@limiter.limit("30 per minute")
 def get_corporate_actions():
     symbol = request.args.get("symbol", "").strip()
     if not symbol:
@@ -291,7 +312,8 @@ def get_corporate_actions():
             "nextEarnings": earnings_date,
         })
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        log.exception("Corporate actions failed for %s", symbol)
+        return jsonify({"error": "Could not fetch corporate actions"}), 500
 
 
 @app.route("/api/stock/history-price", methods=["GET"])
@@ -333,7 +355,8 @@ def get_stock_history_price():
             "price": close_price,
         })
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        log.exception("History price failed for %s on %s", symbol, date_str)
+        return jsonify({"error": "Could not fetch historical price"}), 500
 
 
 # ─── Market overview ─────────────────────────────────────────────────────────
@@ -379,6 +402,7 @@ def get_market_overview():
 
 
 @app.route("/api/fx/usd-inr", methods=["GET"])
+@limiter.limit("30 per minute")
 def get_usd_inr():
     result = fetch_ticker_data("USDINR=X")
     return jsonify({"rate": result.get("price"), "dayChange": result.get("dayChange"),
@@ -420,6 +444,7 @@ def _load_amfi_nav() -> dict:
 
 
 @app.route("/api/mf/nav", methods=["GET"])
+@limiter.limit("30 per minute")
 def get_mf_nav():
     code = request.args.get("scheme_code", "").strip()
     if not code:
@@ -469,6 +494,7 @@ def _amfi_nav_on_day(code, day):
 
 
 @app.route("/api/mf/historical-nav", methods=["GET"])
+@limiter.limit("30 per minute")
 def get_historical_nav():
     code = request.args.get("scheme_code", "").strip()
     date_str = request.args.get("date", "").strip()
@@ -497,7 +523,8 @@ def get_historical_nav():
                 })
         return jsonify({"error": "NAV not found for that date"}), 404
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        log.exception("Historical NAV failed for %s on %s", code, date_str)
+        return jsonify({"error": "Could not fetch historical NAV"}), 500
 
 
 # ─── Portfolio upcoming events ───────────────────────────────────────────────
@@ -590,7 +617,8 @@ def portfolio_upcoming_events():
         days = int(body.get("days", 30))
     except (TypeError, ValueError):
         days = 30
-    days = min(max(days, 1), 90)
+    if days < 1 or days > 365:
+        return jsonify({"error": "days must be between 1 and 365"}), 400
 
     today = date.today()
     horizon_end = today + timedelta(days=days)
@@ -628,6 +656,166 @@ def portfolio_upcoming_events():
         unique.append(ev)
 
     return jsonify({"events": unique, "days": days})
+
+
+# ─── Fundamentals ────────────────────────────────────────────────────────────
+
+_FUNDAMENTALS_FIELDS = (
+    "trailingPE", "forwardPE", "trailingEps", "dividendYield",
+    "marketCap", "sector", "industry", "beta",
+    "fiftyTwoWeekHigh", "fiftyTwoWeekLow", "bookValue", "priceToBook",
+)
+
+FUNDAMENTALS_BATCH_MAX = 20
+
+
+def _fetch_fundamentals(symbol):
+    """Return fundamentals dict for a single symbol, using cache."""
+    now = time.time()
+    with _cache_lock:
+        cached = _fundamentals_cache.get(symbol)
+        if cached and now - cached["ts"] < FUNDAMENTALS_CACHE_TTL:
+            return cached["data"]
+
+    try:
+        ticker = yf.Ticker(symbol)
+        info = ticker.info or {}
+        data = {"symbol": symbol, "error": None}
+        for field in _FUNDAMENTALS_FIELDS:
+            data[field] = info.get(field)
+        # Rename for cleaner API
+        data["pe"] = data.pop("trailingPE", None)
+        data["forwardPe"] = data.pop("forwardPE", None)
+        data["eps"] = data.pop("trailingEps", None)
+        data["yearHigh"] = data.pop("fiftyTwoWeekHigh", None)
+        data["yearLow"] = data.pop("fiftyTwoWeekLow", None)
+        data["pb"] = data.pop("priceToBook", None)
+    except Exception:
+        log.exception("Fundamentals fetch error for %s", symbol)
+        data = {"symbol": symbol, "error": "Fetch failed"}
+
+    with _cache_lock:
+        _fundamentals_cache[symbol] = {"data": data, "ts": now}
+    return data
+
+
+@app.route("/api/stock/fundamentals", methods=["GET"])
+@limiter.limit("10 per minute")
+def stock_fundamentals_single():
+    raw = request.args.get("symbol", "")
+    symbol, err = validate_symbol(raw)
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify(_fetch_fundamentals(symbol))
+
+
+@app.route("/api/stock/fundamentals", methods=["POST"])
+@limiter.limit("5 per minute")
+def stock_fundamentals_batch():
+    body = request.get_json(silent=True) or {}
+    symbols = body.get("symbols", [])
+    if not isinstance(symbols, list) or len(symbols) == 0:
+        return jsonify({"error": "symbols array is required"}), 400
+    if len(symbols) > FUNDAMENTALS_BATCH_MAX:
+        return jsonify({"error": f"Max {FUNDAMENTALS_BATCH_MAX} symbols per request"}), 400
+
+    cleaned = []
+    for raw in symbols:
+        sym, err = validate_symbol(str(raw))
+        if sym:
+            cleaned.append(sym)
+
+    results = []
+    if cleaned:
+        with ThreadPoolExecutor(max_workers=min(len(cleaned), 8)) as pool:
+            results = list(pool.map(_fetch_fundamentals, cleaned))
+
+    return jsonify({"results": results})
+
+
+# ─── Upcoming IPOs ───────────────────────────────────────────────────────────
+
+_ipo_cache = {"data": None, "ts": 0}
+_IPO_CACHE_TTL = 3600  # 1 hour
+
+def _fetch_upcoming_ipos():
+    """Fetch current/upcoming IPOs from NSE India API."""
+    now = time.time()
+    with _cache_lock:
+        if _ipo_cache["data"] is not None and now - _ipo_cache["ts"] < _IPO_CACHE_TTL:
+            return _ipo_cache["data"]
+
+    ipos = []
+
+    # ── Indian IPOs from NSE current-issue API ──
+    try:
+        session = requests.Session()
+        # NSE requires a session cookie — hit the main page first
+        session.get(
+            "https://www.nseindia.com",
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
+            timeout=8,
+        )
+        resp = session.get(
+            "https://www.nseindia.com/api/ipo-current-issue",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+                "Accept": "application/json",
+                "Referer": "https://www.nseindia.com/market-data/all-upcoming-issues-ipo",
+            },
+            timeout=10,
+        )
+        if resp.ok:
+            data = resp.json()
+            if isinstance(data, list):
+                for item in data[:20]:
+                    name = item.get("companyName", "")
+                    if not name:
+                        continue
+                    symbol = item.get("symbol", "")
+                    series = item.get("series", "")
+                    ipo_type = "SME" if series == "SME" else "Mainboard"
+
+                    # Subscription times
+                    subs = ""
+                    times = item.get("noOfTime")
+                    if times:
+                        try:
+                            t = float(times)
+                            subs = f"{t:.2f}x"
+                        except (ValueError, TypeError):
+                            pass
+
+                    ipos.append({
+                        "name": str(name)[:100],
+                        "symbol": str(symbol)[:20],
+                        "market": "IN",
+                        "openDate": item.get("issueStartDate", ""),
+                        "closeDate": item.get("issueEndDate", ""),
+                        "price": item.get("issuePrice", ""),
+                        "subscription": subs,
+                        "type": ipo_type,
+                        "status": item.get("status", ""),
+                    })
+    except Exception:
+        log.exception("Failed to fetch NSE IPO data")
+
+    with _cache_lock:
+        _ipo_cache["data"] = ipos
+        _ipo_cache["ts"] = now
+
+    return ipos
+
+
+@app.route("/api/ipos/upcoming", methods=["GET"])
+@limiter.limit("10 per minute")
+def upcoming_ipos():
+    try:
+        data = _fetch_upcoming_ipos()
+        return jsonify({"ipos": data})
+    except Exception:
+        log.exception("IPO fetch error")
+        return jsonify({"ipos": [], "error": "Failed to fetch IPO data"})
 
 
 # ─── Run ─────────────────────────────────────────────────────────────────────

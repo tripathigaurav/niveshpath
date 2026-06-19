@@ -5,10 +5,11 @@ function ToastItem({ toast, onRemove }) {
   const [exiting, setExiting] = useState(false)
 
   useEffect(() => {
-    const t1 = setTimeout(() => setExiting(true), 2800)
-    const t2 = setTimeout(() => onRemove(toast.id), 3200)
+    const delay = toast.action ? 5800 : 2800
+    const t1 = setTimeout(() => setExiting(true), delay)
+    const t2 = setTimeout(() => onRemove(toast.id), delay + 400)
     return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [toast.id, onRemove])
+  }, [toast.id, toast.action, onRemove])
 
   const icons = { success: '✓', error: '✕', info: 'ℹ' }
   const cls = [styles.toast, toast.type, exiting ? 'exiting' : ''].filter(Boolean).join(' ')
@@ -17,6 +18,15 @@ function ToastItem({ toast, onRemove }) {
     <div role="status" aria-live="polite" className={cls}>
       <span className={styles.toastIcon}>{icons[toast.type] || 'ℹ'}</span>
       <span className={styles.toastMsg}>{toast.message}</span>
+      {toast.action && (
+        <button
+          type="button"
+          className={styles.toastAction}
+          onClick={() => { toast.action.onClick(); onRemove(toast.id) }}
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   )
 }

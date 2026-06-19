@@ -59,7 +59,8 @@ export function calcCategoryXirr(assetType, holdings, transactions, { usdInr } =
     allFlows.push(...symFlows)
   }
 
-  return calcXirr(allFlows)
+  const result = calcXirr(allFlows)
+  return result.value
 }
 
 /**
@@ -97,12 +98,33 @@ export function calcPortfolioXirr({
     if (current != null) flows.push({ date: TODAY(), amount: current })
   }
 
-  return calcXirr(flows)
+  const result = calcXirr(flows)
+  return result.value
 }
 
 export function formatXirrDisplay(rate) {
-  if (rate == null) return 'N/A'
-  return `${(rate * 100).toFixed(2)}%`
+  // Handle { value, reason } objects from calcXirr / calcHoldingXirr
+  const val = rate != null && typeof rate === 'object' ? rate.value : rate
+  if (val == null) return 'N/A'
+  return `${(val * 100).toFixed(2)}%`
+}
+
+const XIRR_REASON_LABELS = {
+  too_recent: 'Holding is less than 7 days old',
+  no_positive_flow: 'No current market value available',
+  no_negative_flow: 'No buy transactions found',
+  insufficient_data: 'Not enough transaction data',
+  diverged: 'Calculation did not converge',
+  out_of_range: 'Rate is outside reasonable range',
+  no_transactions: 'No transactions recorded',
+  no_symbol: 'Missing symbol',
+}
+
+export function xirrReasonLabel(rate) {
+  if (rate == null) return null
+  const reason = typeof rate === 'object' ? rate.reason : null
+  if (!reason) return null
+  return XIRR_REASON_LABELS[reason] || reason
 }
 
 function holdingSymbol(holding, assetType) {
@@ -129,16 +151,16 @@ function terminalValueForHolding(holding, assetType, usdInr) {
  * XIRR for a single holding (uses transactions for that symbol + current value).
  */
 export function calcHoldingXirr(holding, assetType, transactions, { usdInr } = {}) {
-  if (!holding || !transactions?.length) return null
+  if (!holding || !transactions?.length) return { value: null, reason: 'no_transactions' }
   const symbol = holdingSymbol(holding, assetType)
-  if (!symbol) return null
+  if (!symbol) return { value: null, reason: 'no_symbol' }
   const mult = assetType === 'usStock' && usdInr ? usdInr : 1
   const terminal = terminalValueForHolding(holding, assetType, usdInr)
   const flows = buildSymbolCashflows(transactions, symbol, assetType, terminal, mult)
   return calcXirr(flows)
 }
 
-/** Map holding id → XIRR rate for table columns. */
+/** Map holding id → { value, reason } for table columns. */
 export function buildHoldingXirrMap(holdings, assetType, transactions, opts = {}) {
   const map = new Map()
   for (const h of holdings || []) {

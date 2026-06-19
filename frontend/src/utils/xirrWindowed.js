@@ -100,7 +100,8 @@ export function calcWindowedXirr(holding, assetType, transactions, windowStartDa
   flows.push({ date: TODAY(), amount: terminal })
 
   if (flows.length < 2) return null
-  return calcXirr(flows)
+  const result = calcXirr(flows)
+  return result.value
 }
 
 function quoteSymbolForExchange(symbol, assetType, exchange) {
@@ -176,7 +177,8 @@ export async function fetchWindowedXirrData(holdings, assetType, transactions, {
 
   for (const h of holdings || []) {
     const sym = quoteSymbolForExchange(holdingSymbol(h, assetType), assetType, exchange)
-    const irrTotal = calcHoldingXirr(h, assetType, transactions, { usdInr })
+    const irrTotalResult = calcHoldingXirr(h, assetType, transactions, { usdInr })
+    const irrTotal = irrTotalResult?.value ?? null
     const entry = { irr90: null, irr365: null, irrSinceApr: null, irrTotal }
 
     for (const winKey of ['irr90', 'irr365', 'irrSinceApr']) {

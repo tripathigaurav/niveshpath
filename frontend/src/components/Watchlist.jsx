@@ -134,23 +134,35 @@ export default function Watchlist({ showToast }) {
     else if (e.key === 'Escape') { setShowDropdown(false); setActiveIdx(-1) }
   }
 
+  const alertedRef = useRef(new Set())
+
   useEffect(() => {
+    let timer = null
     const checkAlerts = () => {
-      const latest = storage.getWatchlist()
-      setItems(latest)
-      for (const item of latest) {
-        if (!item.alertEnabled || !item.targetPrice) continue
-        const cur = getCurrentPriceFromPortfolio(item.symbol, item.assetType)
-        if (cur != null && cur >= item.targetPrice) {
-          showToast?.(
-            `🎯 ${item.symbol}: ₹${cur.toFixed(2)} reached target ₹${item.targetPrice}`,
-            'info'
-          )
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        const latest = storage.getWatchlist()
+        setItems(latest)
+        for (const item of latest) {
+          if (!item.alertEnabled || !item.targetPrice) continue
+          if (alertedRef.current.has(item.symbol)) continue
+          const cur = getCurrentPriceFromPortfolio(item.symbol, item.assetType)
+          if (cur != null && cur >= item.targetPrice) {
+            alertedRef.current.add(item.symbol)
+            showToast?.(
+              `🎯 ${item.symbol}: ₹${cur.toFixed(2)} reached target ₹${item.targetPrice}`,
+              'info'
+            )
+          }
         }
-      }
+      }, 1000)
     }
     window.addEventListener('pt_data_changed', checkAlerts)
-    return () => window.removeEventListener('pt_data_changed', checkAlerts)
+    return () => {
+      window.removeEventListener('pt_data_changed', checkAlerts)
+      if (timer) clearTimeout(timer)
+    }
   }, [showToast])
 
   const enriched = useMemo(

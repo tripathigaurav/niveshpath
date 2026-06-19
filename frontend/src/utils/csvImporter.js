@@ -134,6 +134,7 @@ export function mapRowsToHoldingsManual(rows, columnMap) {
   const { symbol: colSymbol, qty: colQty, price: colPrice, date: colDate, type: colType } = columnMap
   if (!colSymbol || !colQty) throw new Error('Symbol and Qty columns are required')
 
+  const todayStr = new Date().toISOString().slice(0, 10)
   const aggregated = new Map()
   let skipped = 0
   for (const row of rows) {
@@ -143,8 +144,9 @@ export function mapRowsToHoldingsManual(rows, columnMap) {
     const qty = parseFloat(row[colQty])
     const price = colPrice ? parseFloat(row[colPrice]) : NaN
     if (!symbol || !Number.isFinite(qty) || qty <= 0) { skipped++; continue }
-    let date = colDate ? String(row[colDate]).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    let date = colDate ? String(row[colDate]).slice(0, 10) : todayStr
     if (date.length > 10) date = date.slice(0, 10)
+    if (date > todayStr || isNaN(new Date(date).getTime())) date = todayStr
     const prev = aggregated.get(symbol)
     if (prev) {
       const totalQty = prev.qty + qty
@@ -182,6 +184,7 @@ export function mapRowsToHoldings(rows, brokerKey = 'zerodha') {
   }
 
   const aggregated = new Map()
+  const todayStr = new Date().toISOString().slice(0, 10)
   let skipped = 0
 
   for (const row of rows) {
@@ -199,8 +202,9 @@ export function mapRowsToHoldings(rows, brokerKey = 'zerodha') {
       continue
     }
 
-    let date = colDate ? String(row[colDate]).slice(0, 10) : new Date().toISOString().slice(0, 10)
+    let date = colDate ? String(row[colDate]).slice(0, 10) : todayStr
     if (date.length > 10) date = date.slice(0, 10)
+    if (date > todayStr || isNaN(new Date(date).getTime())) date = todayStr
 
     const key = symbol
     const prev = aggregated.get(key)

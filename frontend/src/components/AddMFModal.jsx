@@ -9,7 +9,7 @@ const MIN_SEARCH_LEN = 2
 
 const EMPTY = { schemeCode: '', schemeName: '', units: '', buyNAV: '', buyDate: '' }
 
-export default function AddMFModal({ initial, onSave, onClose }) {
+export default function AddMFModal({ initial, onSave, onClose, existingSchemeCodes = [] }) {
   const [form, setForm] = useState(initial || EMPTY)
   const [searchQuery, setSearchQuery] = useState(initial?.schemeName || '')
   const [results, setResults] = useState([])
@@ -106,6 +106,8 @@ export default function AddMFModal({ initial, onSave, onClose }) {
     const errs = {}
     const code = String(form.schemeCode || '').trim()
     if (!code) errs.schemeName = 'Please search and select a scheme'
+    else if (!initial && existingSchemeCodes.includes(code))
+      errs.schemeName = 'This fund already exists in your portfolio'
     if (!form.units || isNaN(form.units) || +form.units <= 0) errs.units = 'Enter valid units'
     if (!form.buyNAV || isNaN(form.buyNAV) || +form.buyNAV <= 0) errs.buyNAV = 'Enter valid NAV'
     setErrors(errs)

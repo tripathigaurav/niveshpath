@@ -4,10 +4,10 @@ const MAX_ITERATIONS = 50
 
 /**
  * @param {{ date: string, amount: number }[]} cashflows — negative outflows, positive inflows
- * @returns {number|null} annual rate as decimal (0.15 = 15%), or null if undefined
+ * @returns {{ value: number|null, reason: string|null }} annual rate as decimal (0.15 = 15%), with reason if null
  */
 export function calcXirr(cashflows, { guess = 0.1 } = {}) {
-  if (!cashflows?.length || cashflows.length < 2) return null
+  if (!cashflows?.length || cashflows.length < 2) return { value: null, reason: 'insufficient_data' }
 
   const parsed = cashflows
     .map((cf) => ({
@@ -16,17 +16,17 @@ export function calcXirr(cashflows, { guess = 0.1 } = {}) {
     }))
     .filter((cf) => !Number.isNaN(cf.t) && !Number.isNaN(cf.amount))
 
-  if (parsed.length < 2) return null
+  if (parsed.length < 2) return { value: null, reason: 'insufficient_data' }
 
   const dates = parsed.map((p) => p.t)
   const amounts = parsed.map((p) => p.amount)
   const d0 = Math.min(...dates)
   const daySpan = (Math.max(...dates) - d0) / MS_PER_DAY
-  if (daySpan < MIN_HOLDING_DAYS) return null
+  if (daySpan < MIN_HOLDING_DAYS) return { value: null, reason: 'too_recent' }
 
   const hasPos = amounts.some((a) => a > 0)
   const hasNeg = amounts.some((a) => a < 0)
-  if (!hasPos || !hasNeg) return null
+  if (!hasPos || !hasNeg) return { value: null, reason: hasPos ? 'no_negative_flow' : 'no_positive_flow' }
 
   const yearFraction = (t) => (t - d0) / MS_PER_DAY / 365
 
@@ -50,14 +50,14 @@ export function calcXirr(cashflows, { guess = 0.1 } = {}) {
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const f = npv(rate)
     const df = dnpv(rate)
-    if (!Number.isFinite(f) || !Number.isFinite(df) || Math.abs(df) < 1e-12) return null
+    if (!Number.isFinite(f) || !Number.isFinite(df) || Math.abs(df) < 1e-12) return { value: null, reason: 'diverged' }
     const next = rate - f / df
-    if (!Number.isFinite(next)) return null
+    if (!Number.isFinite(next)) return { value: null, reason: 'diverged' }
     if (Math.abs(next - rate) < 1e-7) {
-      if (next <= -0.9999 || next > 10) return null
-      return Math.round(next * 1000000) / 1000000
+      if (next <= -0.9999 || next > 10) return { value: null, reason: 'out_of_range' }
+      return { value: Math.round(next * 1000000) / 1000000, reason: null }
     }
     rate = Math.max(-0.99, Math.min(10, next))
   }
-  return null
+  return { value: null, reason: 'diverged' }
 }

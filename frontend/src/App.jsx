@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { storage } from './utils/storage'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -9,9 +9,10 @@ import WelcomeModal from './components/WelcomeModal'
 import ProfileModal from './components/ProfileModal'
 import XirrBackfillBanner from './components/XirrBackfillBanner'
 import TransactionsModal from './components/TransactionsModal'
-import SIPTrackerModal from './components/SIPTrackerModal'
-import SharedPortfolioModal from './components/SharedPortfolioModal'
-import ReconciliationModal from './components/ReconciliationModal'
+const SIPTrackerModal = lazy(() => import('./components/SIPTrackerModal'))
+const SharedPortfolioModal = lazy(() => import('./components/SharedPortfolioModal'))
+const ReconciliationModal = lazy(() => import('./components/ReconciliationModal'))
+const RebalancingModal = lazy(() => import('./components/RebalancingModal'))
 import {
   downloadPortfolioBackup,
   downloadCategoryBackup,
@@ -39,8 +40,8 @@ import OtherAssets from './components/OtherAssets'
 import Insurance from './components/Insurance'
 import Watchlist from './components/Watchlist'
 import Insights from './components/Insights'
-import TaxReportModal from './components/TaxReportModal'
-import CSVImportWizard from './components/CSVImportWizard'
+const TaxReportModal = lazy(() => import('./components/TaxReportModal'))
+const CSVImportWizard = lazy(() => import('./components/CSVImportWizard'))
 import { useHashRoute } from './hooks/useHashRoute'
 import { usePortfolioMarketRefresh } from './hooks/usePortfolioMarketRefresh'
 
@@ -78,6 +79,7 @@ export default function App() {
   const [txHistoryAssetType, setTxHistoryAssetType] = useState('')
   const [sipTrackerOpen, setSipTrackerOpen] = useState(false)
   const [reconciliationOpen, setReconciliationOpen] = useState(false)
+  const [rebalanceOpen, setRebalanceOpen] = useState(false)
   const [sharedPortfolio, setSharedPortfolio] = useState(() => {
     const snap = readShareFromUrl()
     return snap ? expandSnapshot(snap) : null
@@ -226,7 +228,7 @@ export default function App() {
 
     const content = (() => {
       switch (activeTab) {
-        case 'dashboard':    return <Dashboard {...props} />
+        case 'dashboard':    return <Dashboard {...props} onOpenRebalance={() => setRebalanceOpen(true)} />
         case 'indianStocks': return <IndianStocks {...props}
           onOpenTransactions={() => openTxFor('indianStock')} />
         case 'usStocks':     return <USStocks {...props}
@@ -234,7 +236,7 @@ export default function App() {
         case 'mutualFunds':  return <MutualFunds {...props}
           onOpenSIPTracker={() => setSipTrackerOpen(true)}
           onOpenTransactions={() => openTxFor('mutualFund')} />
-        case 'insights':     return <Insights {...props} />
+        case 'insights':     return <Insights {...props} onOpenRebalance={() => setRebalanceOpen(true)} />
         case 'otherAssets':  return <OtherAssets {...props} />
         case 'insurance':    return <Insurance {...props} />
         case 'watchlist':    return <Watchlist {...props} />
@@ -284,7 +286,7 @@ export default function App() {
       )}
 
       <main id="main-content">
-        <div className="tab-content">
+        <div className="tab-content tab-content-enter" key={activeTab}>
           {renderTab()}
         </div>
       </main>
@@ -320,17 +322,19 @@ export default function App() {
         />
       )}
 
-      <TaxReportModal
-        open={taxReportOpen}
-        onClose={() => setTaxReportOpen(false)}
-        showToast={showToast}
-      />
+      <Suspense fallback={null}>
+        <TaxReportModal
+          open={taxReportOpen}
+          onClose={() => setTaxReportOpen(false)}
+          showToast={showToast}
+        />
 
-      <CSVImportWizard
-        open={csvImportOpen}
-        onClose={() => setCsvImportOpen(false)}
-        showToast={showToast}
-      />
+        <CSVImportWizard
+          open={csvImportOpen}
+          onClose={() => setCsvImportOpen(false)}
+          showToast={showToast}
+        />
+      </Suspense>
 
       <TransactionsModal
         key={txHistoryAssetType}
@@ -339,26 +343,34 @@ export default function App() {
         onClose={() => { setTxHistoryOpen(false); setTxHistoryAssetType('') }}
       />
 
-      <SIPTrackerModal
-        open={sipTrackerOpen}
-        onClose={() => setSipTrackerOpen(false)}
-        showToast={showToast}
-      />
-
-      {sharedPortfolio && (
-        <SharedPortfolioModal
-          portfolio={sharedPortfolio}
-          onClose={() => {
-            setSharedPortfolio(null)
-            window.location.hash = ''
-          }}
+      <Suspense fallback={null}>
+        <SIPTrackerModal
+          open={sipTrackerOpen}
+          onClose={() => setSipTrackerOpen(false)}
+          showToast={showToast}
         />
-      )}
 
-      <ReconciliationModal
-        open={reconciliationOpen}
-        onClose={() => setReconciliationOpen(false)}
-      />
+        {sharedPortfolio && (
+          <SharedPortfolioModal
+            portfolio={sharedPortfolio}
+            onClose={() => {
+              setSharedPortfolio(null)
+              window.location.hash = ''
+            }}
+          />
+        )}
+
+        <ReconciliationModal
+          open={reconciliationOpen}
+          onClose={() => setReconciliationOpen(false)}
+        />
+
+        <RebalancingModal
+          open={rebalanceOpen}
+          onClose={() => setRebalanceOpen(false)}
+          showToast={showToast}
+        />
+      </Suspense>
     </ErrorBoundary>
   )
 }

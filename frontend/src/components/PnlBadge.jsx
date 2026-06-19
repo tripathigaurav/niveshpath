@@ -4,9 +4,10 @@ export default function PnlBadge({ value, pct }) {
   }
   const cls = value > 0 ? 'gain' : value < 0 ? 'loss' : 'neutral'
   const sign = value > 0 ? '+' : ''
+  const arrow = value > 0 ? '↑ ' : value < 0 ? '↓ ' : ''
   return (
-    <span className={`pnl-badge ${cls}`}>
-      {sign}{pct != null ? pct.toFixed(2) + '%' : '—'}
+    <span className={`pnl-badge ${cls}`} aria-label={`${cls}: ${sign}${pct != null ? pct.toFixed(2) + '%' : ''}`}>
+      {arrow}{sign}{pct != null ? pct.toFixed(2) + '%' : '—'}
     </span>
   )
 }

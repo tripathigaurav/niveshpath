@@ -14,7 +14,7 @@ function formatAbsPnl(val) {
 export default function PerformersCard({ title, items, type, emptyMessage = 'No data yet' }) {
   return (
     <div className={`dash-perf-card dash-perf-card--${type}`}>
-      <div className="dash-perf-title">{title}</div>
+      <div className="dash-perf-title">{title} <span className="dash-perf-metric">by return %</span></div>
       {items.length === 0 ? (
         <p className="dash-perf-empty">{emptyMessage}</p>
       ) : (
@@ -22,7 +22,7 @@ export default function PerformersCard({ title, items, type, emptyMessage = 'No 
           {items.map((p) => (
             <li key={p.id} className="dash-perf-item">
               <span className="dash-perf-icon" aria-hidden="true">{p.icon}</span>
-              <span className="dash-perf-name" title={p.name}>{p.symbol}</span>
+              <span className="dash-perf-name" title={p.name}>{p.name || p.symbol}</span>
               <MiniSparkline
                 buyPrice={p.buyPrice}
                 currentPrice={p.currentPrice}

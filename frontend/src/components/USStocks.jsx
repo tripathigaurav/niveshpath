@@ -537,6 +537,7 @@ export default function USStocks({ showToast, onOpenTransactions }) {
           usCategory={addCategory}
           onSave={handleAdd}
           onClose={() => setAddCategory(null)}
+          existingSymbols={stocks.map(s => s.symbol.toUpperCase())}
         />
       )}
       {editStock && (

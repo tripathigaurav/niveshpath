@@ -72,4 +72,17 @@ export const api = {
     fetchJSON(
       `${BASE}/mf/historical-nav?scheme_code=${encodeURIComponent(schemeCode)}&date=${date}`
     ),
+
+  // ── Fundamentals (screener) ───────────────────────────────────────────────
+  getStockFundamentals: (symbol) =>
+    fetchJSON(`${BASE}/stock/fundamentals?symbol=${encodeURIComponent(symbol)}`),
+
+  getBatchFundamentals: (symbols) =>
+    fetchJSON(`${BASE}/stock/fundamentals`, {
+      method: 'POST',
+      body: JSON.stringify({ symbols }),
+    }),
+
+  // ── IPOs ──────────────────────────────────────────────────────────────────
+  getUpcomingIPOs: () => fetchJSON(`${BASE}/ipos/upcoming`),
 }

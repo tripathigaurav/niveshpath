@@ -61,3 +61,18 @@
 .toast.success .toastIcon { color: var(--green); }
 .toast.error   .toastIcon { color: var(--red); }
 .toast.info    .toastIcon { color: var(--blue); }
+
+.toastAction {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.toastAction:hover { opacity: 0.85; }

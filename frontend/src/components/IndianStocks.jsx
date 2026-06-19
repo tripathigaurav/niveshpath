@@ -17,6 +17,7 @@ import {
   calcCategoryXirr,
   calcHoldingXirr,
   formatXirrDisplay,
+  xirrReasonLabel,
   buildHoldingXirrMap,
 } from '../utils/xirrMetrics'
 import { useSortable } from '../hooks/useSortable'
@@ -94,8 +95,10 @@ const getSortVal = (stock, key) => {
       return m.pnl
     case 'pnlPct':
       return m.pnlPct
-    case 'xirr':
-      return calcHoldingXirr(stock, 'indianStock', storage.getTransactions())
+    case 'xirr': {
+      const r = calcHoldingXirr(stock, 'indianStock', storage.getTransactions())
+      return r?.value ?? null
+    }
     default:
       return stock[key]
   }
@@ -160,7 +163,10 @@ function StockRow({ stock, xirr, onOpenDetail }) {
           <PnlBadge value={m.pnl} pct={m.pnlPct} />
         </td>
         <td className="right mono">
-          <span className={xirr != null ? pnlColorClass(xirr) : 'text-3'}>
+          <span
+            className={xirr?.value != null ? pnlColorClass(xirr.value) : 'text-3'}
+            title={xirr?.reason ? xirrReasonLabel(xirr) : undefined}
+          >
             {formatXirrDisplay(xirr)}
           </span>
         </td>
@@ -571,7 +577,7 @@ export default function IndianStocks({ showToast, onOpenTransactions }) {
       )}
 
       {showAdd && (
-        <AddStockModal mode="indian" onSave={handleAdd} onClose={() => setShowAdd(false)} />
+        <AddStockModal mode="indian" onSave={handleAdd} onClose={() => setShowAdd(false)} existingSymbols={stocks.map(s => s.symbol.toUpperCase())} />
       )}
       {editStock && (
         <AddStockModal

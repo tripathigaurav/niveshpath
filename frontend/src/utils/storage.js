@@ -10,6 +10,7 @@ const KEYS = {
   WATCHLIST: 'pt_watchlist',
   TRANSACTIONS: 'pt_transactions',
   SETTINGS: 'pt_settings',
+  REBALANCE_TARGETS: 'pt_rebalance_targets',
 }
 
 function load(key, fallback) {
@@ -83,6 +84,9 @@ export const storage = {
   },
   setSettings: (v) => save(KEYS.SETTINGS, v),
 
+  getRebalanceTargets: () => load(KEYS.REBALANCE_TARGETS, []),
+  setRebalanceTargets: (v) => save(KEYS.REBALANCE_TARGETS, v),
+
   exportAll: () => ({
     indianStocks: load(KEYS.INDIAN_STOCKS, []),
     usStocks: load(KEYS.US_STOCKS, []),
@@ -117,33 +121,52 @@ export const storage = {
     const REQUIRED_MF_FIELDS = ['id', 'schemeCode', 'schemeName', 'units', 'buyNAV']
     const REQUIRED_ASSET_FIELDS = ['id', 'name', 'type', 'investedAmount']
 
-    function validateItems(items, requiredFields) {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+    function isValidDate(d) {
+      return typeof d === 'string' && DATE_RE.test(d) && d <= todayStr && !isNaN(new Date(d).getTime())
+    }
+
+    function validateItems(items, requiredFields, extraCheck) {
       if (!Array.isArray(items)) return { valid: [], filteredOut: 0 }
       const valid = items.filter((item) =>
         isPlainObject(item) &&
-        requiredFields.every((f) => item[f] !== undefined && item[f] !== null)
+        requiredFields.every((f) => item[f] !== undefined && item[f] !== null) &&
+        (!extraCheck || extraCheck(item))
       )
       return { valid, filteredOut: items.length - valid.length }
     }
 
+    const stockCheck = (s) =>
+      Number(s.qty) > 0 && Number(s.buyPrice) > 0 &&
+      (!s.buyDate || isValidDate(s.buyDate))
+
+    const mfCheck = (f) =>
+      Number(f.units) > 0 && Number(f.buyNAV) > 0 &&
+      (!f.buyDate || isValidDate(f.buyDate))
+
+    const assetCheck = (a) =>
+      Number(a.investedAmount) > 0
+
     let filteredOutCount = 0
     if (data.indianStocks) {
-      const r = validateItems(data.indianStocks, REQUIRED_STOCK_FIELDS)
+      const r = validateItems(data.indianStocks, REQUIRED_STOCK_FIELDS, stockCheck)
       data.indianStocks = r.valid
       filteredOutCount += r.filteredOut
     }
     if (data.usStocks) {
-      const r = validateItems(data.usStocks, REQUIRED_STOCK_FIELDS)
+      const r = validateItems(data.usStocks, REQUIRED_STOCK_FIELDS, stockCheck)
       data.usStocks = r.valid
       filteredOutCount += r.filteredOut
     }
     if (data.mutualFunds) {
-      const r = validateItems(data.mutualFunds, REQUIRED_MF_FIELDS)
+      const r = validateItems(data.mutualFunds, REQUIRED_MF_FIELDS, mfCheck)
       data.mutualFunds = r.valid
       filteredOutCount += r.filteredOut
     }
     if (data.otherAssets) {
-      const r = validateItems(data.otherAssets, REQUIRED_ASSET_FIELDS)
+      const r = validateItems(data.otherAssets, REQUIRED_ASSET_FIELDS, assetCheck)
       data.otherAssets = r.valid
       filteredOutCount += r.filteredOut
     }

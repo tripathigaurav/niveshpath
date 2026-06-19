@@ -9,7 +9,7 @@ const MIN_SEARCH_LEN = 2
 
 const EMPTY = { symbol: '', name: '', qty: '', buyPrice: '', buyDate: '' }
 
-export default function AddStockModal({ initial, onSave, onClose, mode = 'indian', usCategory = 'stock' }) {
+export default function AddStockModal({ initial, onSave, onClose, mode = 'indian', usCategory = 'stock', existingSymbols = [] }) {
   const [form, setForm] = useState(initial || EMPTY)
   const [searchQuery, setSearchQuery] = useState(initial?.symbol || '')
   const [results, setResults] = useState([])
@@ -105,6 +105,8 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
   const validate = () => {
     const errs = {}
     if (!form.symbol.trim()) errs.symbol = 'Symbol is required'
+    else if (!initial && existingSymbols.includes(form.symbol.trim().toUpperCase()))
+      errs.symbol = 'This symbol already exists in your portfolio'
     if (!form.name.trim()) errs.name = 'Name is required'
     if (!form.qty || isNaN(form.qty) || +form.qty <= 0) errs.qty = 'Enter a valid quantity'
     if (!form.buyPrice || isNaN(form.buyPrice) || +form.buyPrice <= 0) errs.buyPrice = 'Enter a valid price'

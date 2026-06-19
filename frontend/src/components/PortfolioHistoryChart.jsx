@@ -68,11 +68,9 @@ export default function PortfolioHistoryChart({
         ledgerPoints,
         liveCurrentValue
       )
-      const chartPoints =
-        source === 'snapshot' ? resolved : compactFlatRuns(resolved)
 
       if (!cancelled) {
-        setAllPoints(chartPoints)
+        setAllPoints(resolved)
         setHistorySource(source)
       }
     }
@@ -90,14 +88,13 @@ export default function PortfolioHistoryChart({
     }
   }, [refreshKey, holdings, liveCurrentValue, investedValue])
 
-  const points = useMemo(
-    () =>
-      resolveRangePoints(allPoints, range, {
-        liveCurrentValue,
-        todayPnl,
-      }),
-    [allPoints, range, liveCurrentValue, todayPnl]
-  )
+  const points = useMemo(() => {
+    const ranged = resolveRangePoints(allPoints, range, {
+      liveCurrentValue,
+      todayPnl,
+    })
+    return historySource === 'snapshot' ? ranged : compactFlatRuns(ranged)
+  }, [allPoints, range, liveCurrentValue, todayPnl, historySource])
 
   const summary = useMemo(() => {
     const base = computeChartSummary(points, {

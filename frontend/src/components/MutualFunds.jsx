@@ -16,6 +16,7 @@ import {
   calcCategoryXirr,
   calcHoldingXirr,
   formatXirrDisplay,
+  xirrReasonLabel,
   buildHoldingXirrMap,
 } from '../utils/xirrMetrics'
 import HoldingsSubTabs from './HoldingsSubTabs'
@@ -66,8 +67,10 @@ const getSortVal = (fund, key) => {
     case 'invested': return fund.units * fund.buyNAV
     case 'buyNAV': return fund.buyNAV
     case 'qty': return fund.units
-    case 'xirr':
-      return calcHoldingXirr(fund, 'mutualFund', storage.getTransactions())
+    case 'xirr': {
+      const r = calcHoldingXirr(fund, 'mutualFund', storage.getTransactions())
+      return r?.value ?? null
+    }
     default: return fund[key]
   }
 }
@@ -126,7 +129,10 @@ function FundRow({ fund, xirr, onOpenDetail }) {
           <PnlBadge value={pnl} pct={pnlPct} />
         </td>
         <td className="right mono">
-          <span className={xirr != null ? pnlColorClass(xirr) : 'text-3'}>
+          <span
+            className={xirr?.value != null ? pnlColorClass(xirr.value) : 'text-3'}
+            title={xirr?.reason ? xirrReasonLabel(xirr) : undefined}
+          >
             {formatXirrDisplay(xirr)}
           </span>
         </td>
@@ -518,7 +524,7 @@ export default function MutualFunds({ showToast, onOpenSIPTracker, onOpenTransac
         </div>
       )}
 
-      {showAdd && <AddMFModal onSave={handleAdd} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddMFModal onSave={handleAdd} onClose={() => setShowAdd(false)} existingSchemeCodes={funds.map(f => String(f.schemeCode))} />}
       {editFund && (
         <AddMFModal
           initial={editFund}

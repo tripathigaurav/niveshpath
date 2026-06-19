@@ -10,6 +10,11 @@
   -webkit-overflow-scrolling: touch;
 }
 
+[data-theme='light'] .marketStripDark {
+  background: rgba(240, 242, 245, 0.95);
+  border-bottom-color: #e5e7eb;
+}
+
 .marketStripDark::before,
 .marketStripDark::after {
   content: '';
@@ -23,6 +28,9 @@
 
 .marketStripDark::before { left: 0;  background: linear-gradient(to right, #0f1117, transparent); }
 .marketStripDark::after  { right: 0; background: linear-gradient(to left,  #0f1117, transparent); }
+
+[data-theme='light'] .marketStripDark::before { background: linear-gradient(to right, rgba(240,242,245,0.95), transparent); }
+[data-theme='light'] .marketStripDark::after  { background: linear-gradient(to left,  rgba(240,242,245,0.95), transparent); }
 
 .marketStripError {
   justify-content: center;
@@ -87,12 +95,14 @@
   font-size: 11px;
   text-transform: uppercase;
 }
+[data-theme='light'] .msLabel { color: #6b7280; }
 
 .msPrice {
   color: #e8ecf0;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+[data-theme='light'] .msPrice { color: #1f2937; }
 
 .msChange {
   font-size: 11.5px;
@@ -115,3 +125,4 @@
   margin: 0 4px;
   flex-shrink: 0;
 }
+[data-theme='light'] .msSep { background: #d1d5db; }

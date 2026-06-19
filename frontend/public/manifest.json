@@ -1,0 +1,22 @@
+{
+  "name": "निवेश Path — Portfolio Tracker",
+  "short_name": "निवेश Path",
+  "description": "Track your investments across Indian stocks, US stocks, mutual funds, insurance, and more.",
+  "start_url": "/niveshpath/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/niveshpath/branding/logo-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/niveshpath/branding/logo-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

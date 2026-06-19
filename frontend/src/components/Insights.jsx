@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { usePortfolioPerformers } from '../hooks/usePortfolioPerformers'
-import PerformersCard from './PerformersCard'
+import { formatPct } from '../utils/formatters'
+import { pnlColorClass } from '../utils/pnl'
+import StockScreener from './StockScreener'
+import UpcomingIPOs from './UpcomingIPOs'
 import { getHarvestCandidates, getRealizedGainsFY } from '../utils/taxHarvesting'
 
 const COMING_SOON = [
@@ -30,32 +33,41 @@ const COMING_SOON = [
   },
 ]
 
-function CategoryPerformance({ icon, title, count, unit, top, bottom }) {
-  if (count === 0) return null
+function formatAbsPnl(val) {
+  if (val == null) return null
+  const abs = Math.abs(val)
+  if (abs >= 1e7) return `${val >= 0 ? '+' : '-'}₹${(abs / 1e7).toFixed(2)}Cr`
+  if (abs >= 1e5) return `${val >= 0 ? '+' : '-'}₹${(abs / 1e5).toFixed(2)}L`
+  if (abs >= 1e3) return `${val >= 0 ? '+' : '-'}₹${(abs / 1e3).toFixed(1)}K`
+  return `${val >= 0 ? '+' : '-'}₹${abs.toFixed(0)}`
+}
 
+function PerformerRow({ p }) {
   return (
-    <div className="insights-cat-block">
-      <div className="insights-cat-head">
-        <span className="insights-cat-icon" aria-hidden="true">{icon}</span>
-        <span className="insights-cat-title">{title}</span>
-        <span className="insights-cat-count">
-          {count} {unit}{count !== 1 ? 's' : ''}
-        </span>
-      </div>
-      <div className="insights-cat-perf">
-        <PerformersCard
-          title="Top Performers"
-          items={top}
-          type="top"
-          emptyMessage="No gainers with prices yet"
-        />
-        <PerformersCard
-          title="Bottom Performers"
-          items={bottom}
-          type="bottom"
-          emptyMessage="No losers with prices yet"
-        />
-      </div>
+    <li className="perf-row">
+      <span className="perf-row-icon" aria-hidden="true">{p.icon}</span>
+      <span className="perf-row-name" title={p.name}>{p.name || p.symbol}</span>
+      <span className={`perf-row-pct ${pnlColorClass(p.pnlPct)}`}>
+        {formatPct(p.pnlPct)}
+      </span>
+      {p.pnlAbs != null && (
+        <span className="perf-row-abs">{formatAbsPnl(p.pnlAbs)}</span>
+      )}
+    </li>
+  )
+}
+
+function PerformerColumn({ title, items, emptyMsg }) {
+  return (
+    <div className="perf-col">
+      <div className="perf-col-title">{title} <span className="perf-col-metric">by return %</span></div>
+      {items.length === 0 ? (
+        <p className="perf-col-empty">{emptyMsg}</p>
+      ) : (
+        <ol className="perf-col-list">
+          {items.map((p, i) => <PerformerRow key={p.id ?? i} p={p} />)}
+        </ol>
+      )}
     </div>
   )
 }
@@ -73,7 +85,7 @@ function ComingSoonCard({ icon, title, desc }) {
   )
 }
 
-export default function Insights() {
+export default function Insights({ onOpenRebalance } = {}) {
   const perf = usePortfolioPerformers()
   const { candidates, realizedGains } = useMemo(() => ({
     candidates: getHarvestCandidates(),
@@ -103,39 +115,51 @@ export default function Insights() {
 
       <div className="insights-body">
         <section className="insights-section">
+          <div className="insights-section-label">Upcoming IPOs</div>
+          <UpcomingIPOs />
+        </section>
+
+        <section className="insights-section">
           <div className="insights-section-label">Performance</div>
           {!perf.hasPerformance ? (
             <p className="insights-hint">
-              Refresh prices on your holdings to see top and bottom performers by category.
+              Refresh prices on your holdings to see top and bottom performers.
             </p>
           ) : (
-            <div className="insights-cat-stack">
-              <CategoryPerformance
-                icon="🇮🇳"
-                title="Indian Stocks"
-                unit="stock"
-                count={perf.indian.count}
-                top={perf.indian.top}
-                bottom={perf.indian.bottom}
+            <div className="perf-panel">
+              <PerformerColumn
+                title="Top Performers"
+                items={perf.allTop}
+                emptyMsg="No gainers yet"
               />
-              <CategoryPerformance
-                icon="🇺🇸"
-                title="US Stocks"
-                unit="stock"
-                count={perf.us.count}
-                top={perf.us.top}
-                bottom={perf.us.bottom}
-              />
-              <CategoryPerformance
-                icon="📋"
-                title="Mutual Funds"
-                unit="fund"
-                count={perf.mf.count}
-                top={perf.mf.top}
-                bottom={perf.mf.bottom}
+              <PerformerColumn
+                title="Bottom Performers"
+                items={perf.allBottom}
+                emptyMsg="No losers yet"
               />
             </div>
           )}
+        </section>
+
+        <section className="insights-section">
+          <div className="insights-section-label">Stock Screener</div>
+          <StockScreener />
+        </section>
+
+        <section className="insights-section">
+          <div className="insights-section-label">Portfolio Tools</div>
+          <div className="insights-soon-grid">
+            {onOpenRebalance && (
+              <div className="insights-soon-card" style={{ cursor: 'pointer', borderStyle: 'solid', opacity: 1 }} onClick={onOpenRebalance} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpenRebalance()}>
+                <span className="insights-soon-icon" aria-hidden="true">⚖</span>
+                <div className="insights-soon-body">
+                  <div className="insights-soon-title">Portfolio Rebalancing</div>
+                  <p className="insights-soon-desc">Set target allocations and see buy/sell amounts</p>
+                </div>
+                <span className="insights-soon-badge" style={{ background: 'var(--accent)', color: '#fff' }}>Open</span>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="insights-section">
