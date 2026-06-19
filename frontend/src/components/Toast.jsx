@@ -12,7 +12,7 @@ function ToastItem({ toast, onRemove }) {
   }, [toast.id, toast.action, onRemove])
 
   const icons = { success: '✓', error: '✕', info: 'ℹ' }
-  const cls = [styles.toast, toast.type, exiting ? 'exiting' : ''].filter(Boolean).join(' ')
+  const cls = [styles.toast, toast.type, exiting ? styles.exiting : ''].filter(Boolean).join(' ')
 
   return (
     <div role="status" aria-live="polite" className={cls}>

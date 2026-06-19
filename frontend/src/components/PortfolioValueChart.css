@@ -416,6 +416,15 @@
   }
 }
 
+@media (max-width: 480px) {
+  .pvc-chart-shell {
+    min-height: 220px;
+  }
+  .pvc-value {
+    font-size: 20px;
+  }
+}
+
 /* Category chip toggles for portfolio value chart */
 .pvc-cat-chips {
   display: flex;

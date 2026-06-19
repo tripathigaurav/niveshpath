@@ -46,6 +46,10 @@ def _set_security_headers(response):
     return response
 limiter = Limiter(get_remote_address, app=app, default_limits=["60 per minute"])
 
+# Support correct client IP behind Render/Nginx proxy
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
 # ─── Config constants ─────────────────────────────────────────────────────────
 
 MARKET_CACHE_TTL    = 30          # seconds
@@ -642,6 +646,8 @@ def portfolio_upcoming_events():
         )
 
     all_events = []
+    if not cleaned:
+        return jsonify({"events": [], "days": days})
     with ThreadPoolExecutor(max_workers=min(len(cleaned), OVERVIEW_MAX_WORKERS)) as pool:
         for batch in pool.map(_fetch, cleaned):
             all_events.extend(batch)

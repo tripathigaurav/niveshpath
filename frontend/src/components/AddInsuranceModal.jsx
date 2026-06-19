@@ -167,7 +167,15 @@ export default function AddInsuranceModal({ initial, onSave, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (validate()) onSave(form)
+    if (!validate()) return
+    const out = { ...form }
+    const config = TYPE_CONFIG[out.type] ?? TYPE_CONFIG.other
+    for (const f of (config.extraFields ?? [])) {
+      if (f.type === 'number' && out[f.field] !== '' && out[f.field] != null) {
+        out[f.field] = parseFloat(out[f.field])
+      }
+    }
+    onSave(out)
   }
 
   return (

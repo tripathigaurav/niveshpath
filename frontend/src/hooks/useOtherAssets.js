@@ -15,9 +15,8 @@ export function useOtherAssets() {
 
   const addAsset = useCallback((data) => {
     const entry = {
+      ...data,
       id: uuidv4(),
-      name: data.name,
-      type: data.type,
       investedAmount: parseFloat(data.investedAmount),
       currentValue: data.currentValue ? parseFloat(data.currentValue) : null,
       notes: data.notes || '',
@@ -50,12 +49,11 @@ export function useOtherAssets() {
         a.id === id
           ? {
               ...a,
-              name: data.name,
-              type: data.type,
+              ...data,
               investedAmount: parseFloat(data.investedAmount),
               currentValue: data.currentValue ? parseFloat(data.currentValue) : null,
               notes: data.notes || '',
-              addedDate: data.addedDate,
+              addedDate: data.addedDate || a.addedDate,
             }
           : a
       )

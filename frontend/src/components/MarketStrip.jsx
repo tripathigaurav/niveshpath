@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { api } from '../utils/api'
 import styles from './MarketStrip.module.css'
 
@@ -43,6 +43,8 @@ function SkeletonPill() {
 export default function MarketStrip() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const togglePause = useCallback(() => setPaused((p) => !p), [])
 
   useEffect(() => {
     // On GitHub Pages / static host the Flask backend is not available.
@@ -145,9 +147,12 @@ export default function MarketStrip() {
   return (
     <div className={styles.marketStripDark}>
       <div className={styles.msTicker} role="marquee" aria-label="Market overview">
-        <div className={styles.msTickerWrap}>
-          <div className={styles.msTickerTrack}>{track1}</div>
-          <div className={styles.msTickerTrack} aria-hidden="true">{track2}</div>
+        <div
+          className={styles.msTickerWrap}
+          onClick={togglePause}
+        >
+          <div className={styles.msTickerTrack} style={paused ? { animationPlayState: 'paused' } : undefined}>{track1}</div>
+          <div className={styles.msTickerTrack} aria-hidden="true" style={paused ? { animationPlayState: 'paused' } : undefined}>{track2}</div>
         </div>
       </div>
     </div>

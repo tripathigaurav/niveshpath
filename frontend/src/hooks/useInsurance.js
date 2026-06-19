@@ -15,9 +15,8 @@ export function useInsurance() {
 
   const addPolicy = useCallback((data) => {
     const entry = {
+      ...data,
       id: uuidv4(),
-      name: data.name,
-      type: data.type,
       premium: parseFloat(data.premium),
       coverAmount: data.coverAmount ? parseFloat(data.coverAmount) : null,
       startDate: data.startDate || new Date().toISOString().split('T')[0],
@@ -51,11 +50,10 @@ export function useInsurance() {
         p.id === id
           ? {
               ...p,
-              name: data.name,
-              type: data.type,
+              ...data,
               premium: parseFloat(data.premium),
               coverAmount: data.coverAmount ? parseFloat(data.coverAmount) : null,
-              startDate: data.startDate,
+              startDate: data.startDate || p.startDate,
               renewalDate: data.renewalDate || null,
               notes: data.notes || '',
             }

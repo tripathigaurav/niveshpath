@@ -75,7 +75,8 @@
 
 @media (max-width: 767px) {
   .msTickerTrack { animation-duration: 25s; }
-  .msPill { font-size: 11.5px; }
+  .msPill { font-size: 11.5px; padding: 0 5px; gap: 4px; }
+  .msLabel { font-size: 10px; }
 }
 
 .msPill {

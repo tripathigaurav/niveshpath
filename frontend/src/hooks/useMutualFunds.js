@@ -68,8 +68,8 @@ export function useMutualFunds() {
         symbol: removed.schemeCode,
         name: removed.schemeName,
         qty: removed.units,
-        price: removed.buyNAV,
-        date: removed.buyDate,
+        price: removed.currentNAV ?? removed.buyNAV,
+        date: new Date().toISOString().split('T')[0],
         holdingId: removed.id,
       })
     }

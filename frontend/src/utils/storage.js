@@ -139,7 +139,7 @@ export const storage = {
     }
 
     const stockCheck = (s) =>
-      Number(s.qty) > 0 && Number(s.buyPrice) > 0 &&
+      Number(s.qty) > 0 && Number(s.buyPrice) >= 0 &&
       (!s.buyDate || isValidDate(s.buyDate))
 
     const mfCheck = (f) =>

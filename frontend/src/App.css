@@ -5845,3 +5845,37 @@ thead th { min-height: 44px; }
 .virtual-row .right {
   text-align: right;
 }
+
+/* ─── Mobile polish: tables in modals + market strip ──────────────────────── */
+@media (max-width: 767px) {
+  /* Tax report modal: hide Days Held (col 8) and STT (col 10) */
+  .tax-report-modal .data-table th:nth-child(8),
+  .tax-report-modal .data-table td:nth-child(8),
+  .tax-report-modal .data-table th:nth-child(10),
+  .tax-report-modal .data-table td:nth-child(10) {
+    display: none;
+  }
+  .tax-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Ledger table: hide Charges (col 7) and Notes (col 8) */
+  .ledger-table th:nth-child(7),
+  .ledger-table td:nth-child(7),
+  .ledger-table th:nth-child(8),
+  .ledger-table td:nth-child(8) {
+    display: none;
+  }
+  .ledger-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ledger-dates { width: 100%; }
+  .ledger-input--num { width: 68px; }
+}
+
+@media (max-width: 420px) {
+  .tax-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

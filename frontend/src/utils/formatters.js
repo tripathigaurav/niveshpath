@@ -1,5 +1,5 @@
 export function formatINR(value, compact = false) {
-  if (value === null || value === undefined || isNaN(value)) return '—'
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   const abs = Math.abs(value)
   if (compact && abs >= 1e7) {
     return '₹\u00A0' + (value / 1e7).toFixed(2) + '\u00A0Cr'
@@ -19,7 +19,7 @@ export function formatINR(value, compact = false) {
 }
 
 export function formatUSD(value) {
-  if (value === null || value === undefined || isNaN(value)) return '—'
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -29,20 +29,20 @@ export function formatUSD(value) {
 }
 
 export function formatPct(value, showPlus = true) {
-  if (value === null || value === undefined || isNaN(value)) return '—'
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   const sign = value > 0 && showPlus ? '+' : ''
   return `${sign}${value.toFixed(2)}%`
 }
 
 export function formatChange(value, currency = 'INR') {
-  if (value === null || value === undefined || isNaN(value)) return '—'
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   const sign = value > 0 ? '+' : ''
   if (currency === 'INR') return sign + formatINR(value)
   return sign + formatUSD(value)
 }
 
 export function formatNumber(value, decimals = 2) {
-  if (value === null || value === undefined || isNaN(value)) return '—'
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   return new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -60,12 +60,14 @@ export function getGreeting(name = '') {
 export function formatDate(dateStr) {
   if (!dateStr) return '—'
   try {
-    return new Date(dateStr).toLocaleDateString('en-IN', {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     })
   } catch {
-    return dateStr
+    return '—'
   }
 }

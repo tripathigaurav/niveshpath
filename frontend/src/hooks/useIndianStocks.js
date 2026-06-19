@@ -72,8 +72,8 @@ export function useIndianStocks() {
         symbol: removed.symbol,
         name: removed.name,
         qty: removed.qty,
-        price: removed.buyPrice,
-        date: removed.buyDate,
+        price: removed.currentPrice ?? removed.buyPrice,
+        date: new Date().toISOString().split('T')[0],
         holdingId: removed.id,
       })
     }

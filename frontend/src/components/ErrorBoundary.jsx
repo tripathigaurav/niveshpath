@@ -14,6 +14,10 @@ export default class ErrorBoundary extends Component {
     console.error('[ErrorBoundary]', error, info)
   }
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null })
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -27,14 +31,22 @@ export default class ErrorBoundary extends Component {
           </svg>
           <h2 className="error-boundary-title">Something went wrong</h2>
           <p className="error-boundary-message">
-            An unexpected error occurred. Please refresh the page.
+            {this.state.error?.message || 'An unexpected error occurred.'}
           </p>
-          <button
-            className="error-boundary-button"
-            onClick={() => window.location.reload()}
-          >
-            Refresh Page
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="error-boundary-button"
+              onClick={this.handleReset}
+            >
+              Try Again
+            </button>
+            <button
+              className="error-boundary-button"
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
       )
     }

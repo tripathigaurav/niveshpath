@@ -374,19 +374,6 @@ export default function Dashboard() {
     }
   }, [t.grandCurrent])
 
-  if (!hasAny) {
-    return (
-      <div className="page page--dashboard">
-        <div className="coming-soon" role="status" aria-live="polite">
-          <div className="placeholder-icon" aria-hidden="true">📊</div>
-          <h2>Dashboard</h2>
-          <p>Add holdings or insurance policies to see your summary here.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const grandPnlClr = pnlColorClass(t.grandPnl)
   const otherSubSegments = useMemo(() => {
     const byType = {}
     for (const a of assets) {
@@ -401,9 +388,23 @@ export default function Dashboard() {
     }))
   }, [assets])
 
+  if (!hasAny) {
+    return (
+      <div className="page page--dashboard">
+        <div className="coming-soon" role="status" aria-live="polite">
+          <div className="placeholder-icon" aria-hidden="true">📊</div>
+          <h2>Dashboard</h2>
+          <p>Add holdings or insurance policies to see your summary here.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const grandPnlClr = pnlColorClass(t.grandPnl)
+
   const allocSegments = [
     { label: 'Indian Stocks', value: t.inInvested, color: ALLOC_COLORS['Indian Stocks'] },
-    { label: 'US Stocks', value: t.usInvestedINR ?? t.usInvestedUSD, color: ALLOC_COLORS['US Stocks'] },
+    { label: 'US Stocks', value: t.usInvestedINR, color: ALLOC_COLORS['US Stocks'] },
     { label: 'Mutual Funds', value: t.mfInvested, color: ALLOC_COLORS['Mutual Funds'] },
     { label: 'Other Assets', value: t.otInvested, color: ALLOC_COLORS['Other Assets'], expandable: true, subSegments: otherSubSegments },
   ].filter((s) => s.value > 0)

@@ -23,18 +23,19 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
   const searchRef = useRef(null)
   const modalRef = useRef(null)
   const debouncedQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
+  const debouncedSymbol = useDebounce(form.symbol, SEARCH_DEBOUNCE_MS)
 
   useFocusTrap(modalRef, true, onClose)
 
   useEffect(() => {
-    if (!form.symbol || form.symbol.length < 2) {
+    if (!debouncedSymbol || debouncedSymbol.length < 2) {
       setLivePrice(null)
       setLivePriceTime(null)
       return
     }
     let cancelled = false
     setLivePriceLoading(true)
-    api.getStockPrice(form.symbol)
+    api.getStockPrice(debouncedSymbol)
       .then((data) => {
         if (cancelled) return
         setLivePrice(data.price ?? data.regularMarketPrice ?? null)
@@ -45,7 +46,7 @@ export default function AddStockModal({ initial, onSave, onClose, mode = 'indian
       })
       .finally(() => { if (!cancelled) setLivePriceLoading(false) })
     return () => { cancelled = true }
-  }, [form.symbol])
+  }, [debouncedSymbol])
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < MIN_SEARCH_LEN) {
