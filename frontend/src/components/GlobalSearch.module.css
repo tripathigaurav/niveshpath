@@ -159,14 +159,24 @@
 }
 
 @media (max-width: 767px) {
-  .gsWrap { width: 140px; }
+  .gsWrap { width: 130px; }
+  .gsInputRow { height: 32px; padding: 0 7px; }
+  .gsInput { font-size: 13px; }
   .gsDropdown {
     position: fixed;
     left: 8px;
     right: 8px;
     width: auto;
     top: calc(52px + 36px + 4px);
-    max-height: 60vh;
+    max-height: 65vh;
     overflow-y: auto;
+    border-radius: 12px;
   }
+  .gsResult { padding: 11px 12px; min-height: 44px; }
+  .gsLabel { font-size: 14px; }
+  .gsSub { font-size: 12px; }
+}
+
+@media (max-width: 420px) {
+  .gsWrap { width: 110px; }
 }

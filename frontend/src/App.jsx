@@ -4,6 +4,7 @@ import { storage } from './utils/storage'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
 import MarketStrip from './components/MarketStrip'
+import MobileBottomNav from './components/MobileBottomNav'
 import ToastContainer from './components/Toast'
 import WelcomeModal from './components/WelcomeModal'
 import ProfileModal from './components/ProfileModal'
@@ -290,6 +291,8 @@ export default function App() {
           {renderTab()}
         </div>
       </main>
+
+      <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 

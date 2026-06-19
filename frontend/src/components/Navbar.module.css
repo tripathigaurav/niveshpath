@@ -275,7 +275,11 @@
 
 @media (max-width: 767px) {
   .navbarCenter { display: none; }
-  .hamburgerBtn { display: flex; }
-  .navbar { padding: 0 12px; }
+  .hamburgerBtn { display: none; }
+  .navbar { padding: 0 10px; height: 52px; }
+  .navbarRight { gap: 6px; }
   .userPillName { display: none; }
+  .userPill { padding: 3px 8px 3px 3px; }
+  .userPillAvatar { width: 24px; height: 24px; font-size: 10px; }
+  .logoImg { height: 32px; }
 }

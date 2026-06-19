@@ -386,14 +386,19 @@
 
 @media (max-width: 767px) {
   .pvc-card {
-    padding: 18px 16px 14px;
+    padding: 14px 12px 12px;
     border-radius: 0;
     border-left: none;
     border-right: none;
   }
 
   .pvc-value {
-    font-size: 24px;
+    font-size: 22px;
+  }
+
+  .pvc-header {
+    gap: 10px;
+    margin-bottom: 6px;
   }
 
   .pvc-header-right {
@@ -408,20 +413,33 @@
   .pvc-range-btn {
     flex: 1;
     text-align: center;
-    padding: 8px 6px;
+    padding: 8px 4px;
+    font-size: 11px;
   }
 
   .pvc-chart-shell {
-    min-height: 260px;
+    min-height: 240px;
+  }
+
+  .pvc-cat-chips {
+    gap: 4px;
+  }
+  .pvc-cat-chip {
+    padding: 3px 8px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 480px) {
   .pvc-chart-shell {
-    min-height: 220px;
+    min-height: 200px;
   }
   .pvc-value {
-    font-size: 20px;
+    font-size: 18px;
+  }
+  .pvc-range-btn {
+    padding: 6px 2px;
+    font-size: 10.5px;
   }
 }
 

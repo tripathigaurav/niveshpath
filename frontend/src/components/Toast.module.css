@@ -76,3 +76,18 @@
   transition: opacity 0.15s;
 }
 .toastAction:hover { opacity: 0.85; }
+
+@media (max-width: 767px) {
+  .toastContainer {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
+    right: 12px;
+    left: 12px;
+  }
+  .toast {
+    min-width: 0;
+    max-width: 100%;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .toastMsg { font-size: 13px; }
+}
