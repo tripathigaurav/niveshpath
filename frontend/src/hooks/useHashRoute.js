@@ -25,6 +25,13 @@ export function useHashRoute() {
     hashToTab(window.location.hash)
   )
 
+  // On first load, ensure the hash is set so the correct tab is active
+  useEffect(() => {
+    if (!window.location.hash || !HASH_TO_TAB[window.location.hash]) {
+      window.location.hash = TAB_TO_HASH[DEFAULT_TAB]
+    }
+  }, [])
+
   useEffect(() => {
     const handler = () => {
       setActiveTabState(hashToTab(window.location.hash))
