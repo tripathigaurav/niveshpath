@@ -22,11 +22,11 @@ export default function WelcomeModal({ onSave }) {
     >
       <div className={`modal ${styles.welcomeModal}`} ref={modalRef}>
         <div className="modal-body">
-          <div className={styles.welcomeIcon}>
+          <div className={styles.welcomeLogo}>
             <img
-              src={`${import.meta.env.BASE_URL}logo-icon.png`}
+              src={`${import.meta.env.BASE_URL}logo-full.png`}
               alt="निवेश Path"
-              style={{ height: 56, width: 56, objectFit: 'contain' }}
+              className={styles.welcomeLogoImg}
             />
           </div>
           <h2 id="welcome-title">Welcome to निवेश Path</h2>
