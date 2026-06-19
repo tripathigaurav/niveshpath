@@ -6365,6 +6365,12 @@ thead th { min-height: 44px; }
   /* ── Confirm dialog ────────────────────────────────────────── */
   .confirm-dialog {
     max-width: calc(100% - 24px);
+    margin: auto;
+    border-radius: 14px;
+  }
+  .modal-overlay:has(.confirm-dialog) {
+    align-items: center;
+    padding: 16px;
   }
   .confirm-body {
     padding: 16px;

@@ -159,9 +159,39 @@
 }
 
 @media (max-width: 767px) {
-  .gsWrap { width: 130px; }
-  .gsInputRow { height: 32px; padding: 0 7px; }
-  .gsInput { font-size: 13px; }
+  .gsWrap {
+    width: 36px;
+    transition: width 0.25s ease;
+  }
+  .gsWrap:focus-within {
+    width: min(260px, calc(100vw - 120px));
+  }
+  .gsInputRow {
+    height: 36px;
+    padding: 0 9px;
+    border-radius: 50%;
+    transition: border-radius 0.2s ease, padding 0.2s ease;
+  }
+  .gsWrap:focus-within .gsInputRow {
+    border-radius: 8px;
+    padding: 0 9px;
+  }
+  .gsInput {
+    font-size: 13px;
+    width: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .gsWrap:focus-within .gsInput {
+    width: auto;
+    opacity: 1;
+  }
+  .gsClear {
+    display: none;
+  }
+  .gsWrap:focus-within .gsClear {
+    display: flex;
+  }
   .gsDropdown {
     position: fixed;
     left: 8px;
@@ -178,5 +208,5 @@
 }
 
 @media (max-width: 420px) {
-  .gsWrap { width: 110px; }
+  .gsWrap:focus-within { width: min(200px, calc(100vw - 100px)); }
 }
